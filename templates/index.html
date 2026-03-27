@@ -1,0 +1,905 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RHI Magnesita — Forklift Veri Girişi</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #0f1117;
+            --bg-secondary: #1a1d27;
+            --bg-card: #222632;
+            --bg-card-hover: #2a2f3d;
+            --bg-input: #161922;
+            --border: #2e3347;
+            --border-focus: #6366f1;
+            --text-primary: #eef0f6;
+            --text-secondary: #9ca3b8;
+            --text-muted: #6b7280;
+            --accent: #6366f1;
+            --accent-hover: #818cf8;
+            --accent-glow: rgba(99, 102, 241, 0.15);
+            --kritik: #ef4444;
+            --kritik-bg: rgba(239, 68, 68, 0.12);
+            --orta: #f59e0b;
+            --orta-bg: rgba(245, 158, 11, 0.12);
+            --dusuk: #22c55e;
+            --dusuk-bg: rgba(34, 197, 94, 0.12);
+            --danger: #ef4444;
+            --success: #22c55e;
+            --night: #8b5cf6;
+            --night-bg: rgba(139, 92, 246, 0.12);
+            --forklift-1: #6366f1;
+            --forklift-2: #f59e0b;
+            --forklift-3: #06b6d4;
+            --radius: 12px;
+            --radius-sm: 8px;
+            --shadow: 0 4px 24px rgba(0,0,0,0.25);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-card) 100%);
+            border-bottom: 1px solid var(--border);
+            padding: 24px 40px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            backdrop-filter: blur(12px);
+        }
+
+        .header-left { display: flex; align-items: center; gap: 16px; }
+
+        .logo {
+            font-size: 28px;
+            font-weight: 800;
+            background: linear-gradient(135deg, var(--accent) 0%, #a78bfa 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -0.5px;
+        }
+
+        .logo-sub { font-size: 13px; color: var(--text-muted); font-weight: 400; }
+
+        .header-actions { display: flex; gap: 12px; align-items: center; }
+
+        .nav-links { display: flex; gap: 6px; }
+        .nav-link {
+            padding: 8px 16px; border-radius: var(--radius-sm);
+            font-size: 13px; font-weight: 600; cursor: pointer;
+            border: 1px solid var(--border); background: transparent;
+            color: var(--text-secondary); text-decoration: none;
+            transition: all .2s;
+        }
+        .nav-link:hover { background: var(--bg-card); color: var(--text-primary); }
+        .nav-link.active { background: var(--accent); color: white; border-color: var(--accent); }
+
+        /* Buttons */
+        .btn {
+            padding: 10px 20px;
+            border-radius: var(--radius-sm);
+            border: none;
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            color: white;
+            box-shadow: 0 2px 12px var(--accent-glow);
+        }
+        .btn-primary:hover {
+            background: var(--accent-hover);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 20px var(--accent-glow);
+        }
+
+        .btn-ghost {
+            background: transparent;
+            color: var(--text-secondary);
+            border: 1px solid var(--border);
+        }
+        .btn-ghost:hover {
+            background: var(--bg-card);
+            color: var(--text-primary);
+            border-color: var(--text-muted);
+        }
+
+        .btn-danger {
+            background: transparent;
+            color: var(--danger);
+            border: 1px solid transparent;
+            padding: 6px 10px;
+            font-size: 13px;
+        }
+        .btn-danger:hover { background: rgba(239, 68, 68, 0.1); }
+
+        .btn-add {
+            background: var(--bg-input);
+            color: var(--text-secondary);
+            border: 1px dashed var(--border);
+            width: 100%;
+            justify-content: center;
+            padding: 12px;
+            font-size: 14px;
+        }
+        .btn-add:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+            background: var(--accent-glow);
+        }
+
+        .btn-sm { padding: 6px 14px; font-size: 13px; }
+
+        /* Main Content */
+        .main {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 32px 40px;
+        }
+
+        /* Section */
+        .section { margin-bottom: 36px; }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+        }
+
+        .section-title {
+            font-size: 18px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .section-title .icon { font-size: 22px; }
+
+        /* Cards */
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 24px;
+            transition: all 0.2s ease;
+        }
+
+        /* Vardiya Grid */
+        .vardiya-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .time-pair {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .mola-row {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr;
+            gap: 12px;
+            align-items: end;
+        }
+
+        .molalar-container { display: flex; flex-direction: column; gap: 12px; }
+
+        /* Form Elements */
+        .form-group { display: flex; flex-direction: column; gap: 6px; }
+
+        .form-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .form-input, .form-select {
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 10px 14px;
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 14px;
+            transition: all 0.2s ease;
+            outline: none;
+        }
+
+        .form-input:focus, .form-select:focus {
+            border-color: var(--border-focus);
+            box-shadow: 0 0 0 3px var(--accent-glow);
+        }
+
+        .form-input::placeholder { color: var(--text-muted); }
+
+        /* Forklift Sections */
+        .forklift-section { margin-bottom: 28px; }
+
+        .forklift-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 2px solid var(--border);
+        }
+
+        .forklift-badge {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            font-weight: 800;
+        }
+
+        .forklift-badge.f1 { background: rgba(99, 102, 241, 0.15); color: var(--forklift-1); }
+        .forklift-badge.f2 { background: rgba(245, 158, 11, 0.15); color: var(--forklift-2); }
+        .forklift-badge.f3 { background: rgba(6, 182, 212, 0.15); color: var(--forklift-3); }
+
+        .forklift-name { font-size: 16px; font-weight: 700; }
+        .forklift-bolge { font-size: 13px; color: var(--text-muted); }
+        .forklift-info { display: flex; flex-direction: column; }
+
+        /* Activity Table */
+        .activity-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+        }
+
+        .activity-table thead th {
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding: 10px 12px;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+            background: var(--bg-input);
+            white-space: nowrap;
+        }
+
+        .activity-table thead th:first-child { border-radius: var(--radius-sm) 0 0 0; }
+        .activity-table thead th:last-child { border-radius: 0 var(--radius-sm) 0 0; }
+
+        .activity-table tbody tr { transition: background 0.15s ease; }
+        .activity-table tbody tr:hover { background: rgba(255,255,255,0.02); }
+
+        .activity-table tbody td {
+            padding: 8px 12px;
+            border-bottom: 1px solid var(--border);
+            vertical-align: middle;
+        }
+
+        .activity-name { font-weight: 500; font-size: 13px; color: var(--text-primary); }
+
+        .table-input, .table-select {
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 8px 10px;
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 13px;
+            width: 100%;
+            outline: none;
+            transition: all 0.2s ease;
+        }
+
+        .table-input:focus, .table-select:focus {
+            border-color: var(--border-focus);
+            box-shadow: 0 0 0 3px var(--accent-glow);
+        }
+
+        .table-input[type="number"] {
+            text-align: center;
+            -moz-appearance: textfield;
+        }
+        .table-input[type="number"]::-webkit-inner-spin-button,
+        .table-input[type="number"]::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+        }
+
+        .table-select {
+            cursor: pointer;
+            appearance: none;
+        }
+
+        /* Composite input: number + unit */
+        .composite-input {
+            display: flex;
+            gap: 4px;
+            align-items: center;
+        }
+        .composite-input .table-input { flex: 1; min-width: 50px; }
+        .composite-input .table-select { width: 68px; flex-shrink: 0; font-size: 12px; padding: 8px 6px; }
+
+        /* Toggle Switch */
+        .toggle-wrapper {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .toggle {
+            position: relative;
+            width: 44px;
+            height: 24px;
+            cursor: pointer;
+        }
+        .toggle input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .toggle-slider {
+            position: absolute;
+            inset: 0;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            transition: all 0.25s ease;
+        }
+        .toggle-slider::before {
+            content: '';
+            position: absolute;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: var(--text-muted);
+            top: 2px;
+            left: 2px;
+            transition: all 0.25s ease;
+        }
+        .toggle input:checked + .toggle-slider {
+            background: var(--night-bg);
+            border-color: var(--night);
+        }
+        .toggle input:checked + .toggle-slider::before {
+            transform: translateX(20px);
+            background: var(--night);
+        }
+
+        .night-label {
+            font-size: 11px;
+            margin-left: 6px;
+            color: var(--text-muted);
+        }
+        .night-label.active { color: var(--night); font-weight: 600; }
+
+        /* Stats Bar */
+        .stats-bar {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 16px;
+            margin-bottom: 32px;
+        }
+
+        .stat-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 20px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 28px;
+            font-weight: 800;
+            background: linear-gradient(135deg, var(--accent), #a78bfa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            line-height: 1.2;
+        }
+        .stat-value.night-val {
+            background: linear-gradient(135deg, var(--night), #c4b5fd);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-top: 4px;
+        }
+
+        /* Toast */
+        .toast {
+            position: fixed;
+            bottom: 32px;
+            right: 32px;
+            background: var(--bg-card);
+            border: 1px solid var(--success);
+            border-radius: var(--radius-sm);
+            padding: 14px 24px;
+            color: var(--text-primary);
+            font-size: 14px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            z-index: 1000;
+            transform: translateY(100px);
+            opacity: 0;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+        }
+        .toast.show { transform: translateY(0); opacity: 1; }
+
+        /* Summary Footer */
+        .summary-footer {
+            background: linear-gradient(135deg, var(--bg-card) 0%, rgba(99, 102, 241, 0.05) 100%);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 20px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .summary-text { font-size: 14px; color: var(--text-secondary); }
+        .summary-text strong { color: var(--text-primary); }
+
+        /* Night shift info box */
+        .night-info {
+            background: var(--night-bg);
+            border: 1px solid rgba(139, 92, 246, 0.2);
+            border-radius: var(--radius-sm);
+            padding: 12px 16px;
+            font-size: 13px;
+            color: #c4b5fd;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 12px;
+        }
+        .night-info .icon { font-size: 18px; }
+
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(12px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .animate-in { animation: fadeInUp 0.4s ease both; }
+
+        @media (max-width: 900px) {
+            .header { padding: 16px 20px; }
+            .main { padding: 20px; }
+            .stats-bar { grid-template-columns: repeat(2, 1fr); }
+            .vardiya-grid { grid-template-columns: 1fr; }
+            .activity-table { font-size: 12px; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header -->
+    <header class="header">
+        <div class="header-left">
+            <div>
+                <div class="logo">🚜 RHI Magnesita</div>
+                <div class="logo-sub">Forklift Süreç Simülasyonu — Veri Girişi</div>
+            </div>
+        </div>
+        <div class="header-actions">
+            <nav class="nav-links">
+                <a href="/" class="nav-link active">📝 Veri Girişi</a>
+                <a href="/timeline" class="nav-link">📊 Deterministik</a>
+                <a href="/timeline-simpy" class="nav-link">🎲 SimPy</a>
+                <a href="/replications" class="nav-link">🔬 Replikasyonlar</a>
+            </nav>
+            <button class="btn btn-ghost" onclick="exportData()">📥 JSON</button>
+            <button class="btn btn-primary" onclick="saveAll()">💾 Kaydet</button>
+        </div>
+    </header>
+
+    <!-- Main -->
+    <main class="main">
+
+        <!-- Stats Bar -->
+        <div class="stats-bar" id="statsBar">
+            <div class="stat-card animate-in">
+                <div class="stat-value" id="statNet">420</div>
+                <div class="stat-label">Net Çalışma (dk)</div>
+            </div>
+            <div class="stat-card animate-in" style="animation-delay:.05s">
+                <div class="stat-value" id="statForklift">3</div>
+                <div class="stat-label">Forklift</div>
+            </div>
+            <div class="stat-card animate-in" style="animation-delay:.1s">
+                <div class="stat-value" id="statActivity">9</div>
+                <div class="stat-label">Toplam Faaliyet</div>
+            </div>
+            <div class="stat-card animate-in" style="animation-delay:.15s">
+                <div class="stat-value" id="statCompletion">0%</div>
+                <div class="stat-label">Veri Tamamlanma</div>
+            </div>
+            <div class="stat-card animate-in" style="animation-delay:.2s">
+                <div class="stat-value night-val" id="statNight">0</div>
+                <div class="stat-label">🌙 Gece Vardiyası</div>
+            </div>
+        </div>
+
+        <!-- Vardiya Section -->
+        <div class="section animate-in" style="animation-delay:.25s">
+            <div class="section-header">
+                <div class="section-title"><span class="icon">⏰</span> Vardiya & Molalar</div>
+            </div>
+            <div class="card">
+                <div class="vardiya-grid">
+                    <div>
+                        <div class="form-group" style="margin-bottom:16px">
+                            <span class="form-label">Vardiya Saatleri</span>
+                            <div class="time-pair">
+                                <div class="form-group">
+                                    <span class="form-label" style="font-size:11px">Başlangıç</span>
+                                    <input type="time" class="form-input" id="vardiyaBaslangic" value="08:00">
+                                </div>
+                                <div class="form-group">
+                                    <span class="form-label" style="font-size:11px">Bitiş</span>
+                                    <input type="time" class="form-input" id="vardiyaBitis" value="16:00">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div>
+                        <span class="form-label">Molalar</span>
+                        <div class="molalar-container" id="molalarContainer"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Forklift Activities -->
+        <div class="section animate-in" style="animation-delay:.3s">
+            <div class="section-header">
+                <div class="section-title"><span class="icon">📋</span> Forklift Faaliyetleri</div>
+            </div>
+            <div id="forkliftContainer"></div>
+        </div>
+
+        <!-- Summary Footer -->
+        <div class="summary-footer animate-in" style="animation-delay:.35s">
+            <div class="summary-text" id="summaryText">Veriler yükleniyor...</div>
+            <button class="btn btn-primary" onclick="saveAll()">💾 Tümünü Kaydet</button>
+        </div>
+    </main>
+
+    <!-- Toast -->
+    <div class="toast" id="toast">
+        <span>✅</span>
+        <span id="toastMessage">Kaydedildi!</span>
+    </div>
+
+    <script>
+        // ─── State ─────────────────────────────────────────
+        let forkliftData = [];
+        let vardiyaData = {};
+        let molaData = [];
+
+        const FK_COLORS = { 1: 'f1', 2: 'f2', 3: 'f3' };
+        const FK_ICONS  = { 1: '🧱', 2: '📦', 3: '🚛' };
+
+        // ─── Init ──────────────────────────────────────────
+        document.addEventListener('DOMContentLoaded', loadData);
+
+        async function loadData() {
+            const [vRes, fRes] = await Promise.all([
+                fetch('/api/vardiya'),
+                fetch('/api/forkliftler')
+            ]);
+            const vJson = await vRes.json();
+            vardiyaData = vJson.vardiya;
+            molaData = vJson.molalar;
+            forkliftData = await fRes.json();
+
+            renderVardiya();
+            renderMolalar();
+            renderForkliftler();
+            updateStats();
+        }
+
+        // ─── Render ────────────────────────────────────────
+        function renderVardiya() {
+            document.getElementById('vardiyaBaslangic').value = vardiyaData.baslangic || '08:00';
+            document.getElementById('vardiyaBitis').value = vardiyaData.bitis || '16:00';
+        }
+
+        function renderMolalar() {
+            document.getElementById('molalarContainer').innerHTML = molaData.map(m => `
+                <div class="mola-row" data-mola-id="${m.id}">
+                    <div class="form-group">
+                        <input type="text" class="form-input mola-ad" value="${m.ad}" placeholder="Mola adı">
+                    </div>
+                    <div class="form-group">
+                        <input type="time" class="form-input mola-baslangic" value="${m.baslangic}">
+                    </div>
+                    <div class="form-group">
+                        <input type="time" class="form-input mola-bitis" value="${m.bitis}">
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renderForkliftler() {
+            document.getElementById('forkliftContainer').innerHTML = forkliftData.map(f => {
+                const cc = FK_COLORS[f.id] || 'f1';
+                const ic = FK_ICONS[f.id] || '🚜';
+                const nightCount = f.faaliyetler.filter(a => a.gece_vardiyasi).length;
+
+                return `
+                <div class="forklift-section" data-forklift-id="${f.id}">
+                    <div class="forklift-header">
+                        <div class="forklift-badge ${cc}">${ic}</div>
+                        <div class="forklift-info">
+                            <div class="forklift-name">${f.ad} — ${f.bolge}</div>
+                            <div class="forklift-bolge">${f.faaliyetler.length} faaliyet${nightCount > 0 ? ` · 🌙 ${nightCount} gece vardiyasına atanabilir` : ''}</div>
+                        </div>
+                    </div>
+                    <table class="activity-table">
+                        <thead>
+                            <tr>
+                                <th style="width:18%">Faaliyet</th>
+                                <th style="width:8%">Çevrim</th>
+                                <th style="width:6%">Min</th>
+                                <th style="width:6%">Max</th>
+                                <th style="width:14%">Tekrar Süresi</th>
+                                <th style="width:10%">Öncelik</th>
+                                <th style="width:14%">Gecikme Tol.</th>
+                                <th style="width:7%">🌙 Gece</th>
+                                <th style="width:7%">⚡ Poisson</th>
+                                <th style="width:5%"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${f.faaliyetler.map(fa => activityRow(fa)).join('')}
+                        </tbody>
+                    </table>
+                    <button class="btn btn-add" style="margin-top:10px" onclick="addActivity(${f.id})">+ Yeni Faaliyet Ekle</button>
+                    ${nightCount > 0 ? `
+                    <div class="night-info">
+                        <span class="icon">🌙</span>
+                        Gece vardiyasına atanabilir faaliyetler: <strong>${f.faaliyetler.filter(a=>a.gece_vardiyasi).map(a=>a.ad).join(', ')}</strong>
+                    </div>` : ''}
+                </div>`;
+            }).join('');
+        }
+
+        function activityRow(fa) {
+            const gTol = fa.gecikme_toleransi;
+            const gBirim = fa.gecikme_birimi || 'dk';
+            return `
+            <tr data-faaliyet-id="${fa.id}">
+                <td>
+                    <input type="text" class="table-input fa-ad" value="${fa.ad}" style="font-weight:500">
+                </td>
+                <td>
+                    <div class="composite-input">
+                        <input type="number" class="table-input fa-cevrim"
+                               value="${fa.cevrim_suresi ?? ''}" placeholder="Ort" min="0" step="0.5">
+                        <span style="color:var(--text-muted);font-size:11px">dk</span>
+                    </div>
+                </td>
+                <td>
+                    <input type="number" class="table-input fa-cevrim-min"
+                           value="${fa.cevrim_min ?? ''}" placeholder="—" min="0" step="0.1"
+                           style="text-align:center">
+                </td>
+                <td>
+                    <input type="number" class="table-input fa-cevrim-max"
+                           value="${fa.cevrim_max ?? ''}" placeholder="—" min="0" step="0.1"
+                           style="text-align:center">
+                </td>
+                <td>
+                    <div class="composite-input">
+                        <input type="number" class="table-input fa-tekrar"
+                               value="${fa.tekrar_suresi ?? ''}" placeholder="—" min="0" step="0.5">
+                        <select class="table-select fa-tekrar-birim">
+                            <option value="dk" ${fa.tekrar_birimi === 'dk' ? 'selected' : ''}>dk</option>
+                            <option value="saat" ${fa.tekrar_birimi === 'saat' ? 'selected' : ''}>saat</option>
+                        </select>
+                    </div>
+                </td>
+                <td>
+                    <select class="table-select fa-oncelik">
+                        <option value="" ${!fa.oncelik ? 'selected' : ''}>—</option>
+                        <option value="yuksek" ${fa.oncelik === 'yuksek' ? 'selected' : ''}>🔴 Yüksek</option>
+                        <option value="normal" ${fa.oncelik === 'normal' ? 'selected' : ''}>🟡 Normal</option>
+                        <option value="dusuk" ${fa.oncelik === 'dusuk' ? 'selected' : ''}>🟢 Düşük</option>
+                    </select>
+                </td>
+                <td>
+                    <div class="composite-input">
+                        <input type="number" class="table-input fa-gecikme"
+                               value="${gTol ?? ''}" placeholder="—" min="0" step="1">
+                        <select class="table-select fa-gecikme-birim">
+                            <option value="dk" ${gBirim === 'dk' ? 'selected' : ''}>dk</option>
+                            <option value="saat" ${gBirim === 'saat' ? 'selected' : ''}>saat</option>
+                        </select>
+                    </div>
+                </td>
+                <td>
+                    <div class="toggle-wrapper">
+                        <label class="toggle">
+                            <input type="checkbox" class="fa-gece" ${fa.gece_vardiyasi ? 'checked' : ''}>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                </td>
+                <td>
+                    <div class="toggle-wrapper">
+                        <label class="toggle">
+                            <input type="checkbox" class="fa-poisson" ${fa.poisson_mode ? 'checked' : ''}>
+                            <span class="toggle-slider" style="${fa.poisson_mode ? 'background:rgba(245,158,11,.3);border-color:#f59e0b' : ''}"></span>
+                        </label>
+                    </div>
+                </td>
+                <td style="text-align:center">
+                    <button class="btn btn-danger btn-sm" onclick="deleteActivity(${fa.id})" title="Sil">🗑️</button>
+                </td>
+            </tr>`;
+        }
+
+        // ─── CRUD ──────────────────────────────────────────
+        async function saveAll() {
+            // Vardiya
+            await fetch('/api/vardiya', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    baslangic: document.getElementById('vardiyaBaslangic').value,
+                    bitis: document.getElementById('vardiyaBitis').value
+                })
+            });
+
+            // Molalar
+            const molaRows = document.querySelectorAll('[data-mola-id]');
+            await fetch('/api/molalar', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(Array.from(molaRows).map(r => ({
+                    id: parseInt(r.dataset.molaId),
+                    ad: r.querySelector('.mola-ad').value,
+                    baslangic: r.querySelector('.mola-baslangic').value,
+                    bitis: r.querySelector('.mola-bitis').value
+                })))
+            });
+
+            // Faaliyetler
+            const rows = document.querySelectorAll('[data-faaliyet-id]');
+            await Promise.all(Array.from(rows).map(row => {
+                const id = row.dataset.faaliyetId;
+                const cv = row.querySelector('.fa-cevrim').value;
+                const cmin = row.querySelector('.fa-cevrim-min').value;
+                const cmax = row.querySelector('.fa-cevrim-max').value;
+                const tk = row.querySelector('.fa-tekrar').value;
+                const gc = row.querySelector('.fa-gecikme').value;
+
+                return fetch(`/api/faaliyet/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        ad: row.querySelector('.fa-ad').value,
+                        cevrim_suresi: cv ? parseFloat(cv) : null,
+                        cevrim_min: cmin ? parseFloat(cmin) : null,
+                        cevrim_max: cmax ? parseFloat(cmax) : null,
+                        tekrar_suresi: tk ? parseFloat(tk) : null,
+                        tekrar_birimi: row.querySelector('.fa-tekrar-birim').value,
+                        oncelik: row.querySelector('.fa-oncelik').value || null,
+                        gecikme_toleransi: gc ? parseFloat(gc) : null,
+                        gecikme_birimi: row.querySelector('.fa-gecikme-birim').value,
+                        gece_vardiyasi: row.querySelector('.fa-gece').checked,
+                        poisson_mode: row.querySelector('.fa-poisson').checked
+                    })
+                });
+            }));
+
+            showToast('Tüm veriler başarıyla kaydedildi!');
+            await loadData();
+        }
+
+        async function addActivity(forkliftId) {
+            const name = prompt('Faaliyet adını girin:');
+            if (!name) return;
+            await fetch('/api/faaliyet', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ forklift_id: forkliftId, ad: name })
+            });
+            showToast('Faaliyet eklendi!');
+            await loadData();
+        }
+
+        async function deleteActivity(id) {
+            if (!confirm('Bu faaliyeti silmek istediğinize emin misiniz?')) return;
+            await fetch(`/api/faaliyet/${id}`, { method: 'DELETE' });
+            showToast('Faaliyet silindi!');
+            await loadData();
+        }
+
+        async function exportData() {
+            const res = await fetch('/api/export');
+            const data = await res.json();
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'forklift_data.json';
+            a.click();
+            showToast('JSON dışa aktarıldı!');
+        }
+
+        // ─── Stats ─────────────────────────────────────────
+        function updateStats() {
+            let totalAct = 0, nightCount = 0, filled = 0, total = 0;
+            forkliftData.forEach(f => f.faaliyetler.forEach(a => {
+                totalAct++;
+                if (a.gece_vardiyasi) nightCount++;
+                total += 4;
+                if (a.cevrim_suresi != null) filled++;
+                if (a.tekrar_suresi != null) filled++;
+                if (a.oncelik) filled++;
+                if (a.gecikme_toleransi != null) filled++;
+            }));
+
+            const pct = total > 0 ? Math.round((filled / total) * 100) : 0;
+            document.getElementById('statActivity').textContent = totalAct;
+            document.getElementById('statCompletion').textContent = pct + '%';
+            document.getElementById('statNight').textContent = nightCount;
+
+            document.getElementById('summaryText').innerHTML = `
+                <strong>${totalAct}</strong> faaliyet · <strong>${pct}%</strong> veri tamamlandı ·
+                🌙 <strong>${nightCount}</strong> faaliyet gece vardiyasına atanabilir
+            `;
+        }
+
+        // ─── Toast ─────────────────────────────────────────
+        function showToast(msg, isErr = false) {
+            const t = document.getElementById('toast');
+            document.getElementById('toastMessage').textContent = msg;
+            t.style.borderColor = isErr ? 'var(--danger)' : 'var(--success)';
+            t.querySelector('span:first-child').textContent = isErr ? '❌' : '✅';
+            t.classList.add('show');
+            setTimeout(() => t.classList.remove('show'), 2500);
+        }
+
+        // ─── Keyboard ─────────────────────────────────────
+        document.addEventListener('keydown', e => {
+            if ((e.metaKey || e.ctrlKey) && e.key === 's') { e.preventDefault(); saveAll(); }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RHI Magnesita — Simülasyon & Gantt Chart</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+    <style>
+        :root {
+            --bg-primary: #0f1117;
+            --bg-secondary: #1a1d27;
+            --bg-card: #222632;
+            --bg-input: #161922;
+            --border: #2e3347;
+            --border-focus: #6366f1;
+            --text-primary: #eef0f6;
+            --text-secondary: #9ca3b8;
+            --text-muted: #6b7280;
+            --accent: #6366f1;
+            --accent-hover: #818cf8;
+            --accent-glow: rgba(99, 102, 241, 0.15);
+            --success: #22c55e;
+            --success-bg: rgba(34, 197, 94, 0.12);
+            --danger: #ef4444;
+            --danger-bg: rgba(239, 68, 68, 0.12);
+            --warning: #f59e0b;
+            --warning-bg: rgba(245, 158, 11, 0.12);
+            --night: #8b5cf6;
+            --radius: 12px;
+            --radius-sm: 8px;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, var(--bg-secondary), var(--bg-card));
+            border-bottom: 1px solid var(--border);
+            padding: 20px 40px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        .header-left { display: flex; align-items: center; gap: 16px; }
+        .logo {
+            font-size: 24px; font-weight: 800;
+            background: linear-gradient(135deg, var(--accent), #a78bfa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .logo-sub { font-size: 13px; color: var(--text-muted); }
+        .nav-links { display: flex; gap: 8px; }
+        .nav-link {
+            padding: 8px 16px; border-radius: var(--radius-sm);
+            font-size: 14px; font-weight: 600; cursor: pointer;
+            border: 1px solid var(--border); background: transparent;
+            color: var(--text-secondary); text-decoration: none;
+            transition: all .2s;
+        }
+        .nav-link:hover { background: var(--bg-card); color: var(--text-primary); }
+        .nav-link.active { background: var(--accent); color: white; border-color: var(--accent); }
+
+        /* Main */
+        .main { max-width: 1600px; margin: 0 auto; padding: 24px 40px; }
+
+        /* Scenario Tabs */
+        .tabs {
+            display: flex; gap: 6px; margin-bottom: 24px;
+            flex-wrap: wrap;
+        }
+        .tab {
+            padding: 10px 18px; border-radius: var(--radius-sm);
+            font-size: 13px; font-weight: 600; cursor: pointer;
+            background: var(--bg-card); border: 1px solid var(--border);
+            color: var(--text-secondary); transition: all .2s;
+            display: flex; align-items: center; gap: 6px;
+        }
+        .tab:hover { border-color: var(--accent); color: var(--text-primary); }
+        .tab.active { background: var(--accent); color: white; border-color: var(--accent); }
+        .tab .badge {
+            font-size: 11px; padding: 2px 7px; border-radius: 10px;
+            font-weight: 700;
+        }
+        .tab .badge.ok { background: var(--success-bg); color: var(--success); }
+        .tab .badge.fail { background: var(--danger-bg); color: var(--danger); }
+
+        /* KPI Grid */
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 12px; margin-bottom: 24px;
+        }
+        .kpi {
+            background: var(--bg-card); border: 1px solid var(--border);
+            border-radius: var(--radius); padding: 16px; text-align: center;
+        }
+        .kpi-value {
+            font-size: 28px; font-weight: 800; line-height: 1.2;
+            background: linear-gradient(135deg, var(--accent), #a78bfa);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        }
+        .kpi-value.good { background: linear-gradient(135deg, var(--success), #86efac); -webkit-background-clip: text; }
+        .kpi-value.bad { background: linear-gradient(135deg, var(--danger), #fca5a5); -webkit-background-clip: text; }
+        .kpi-value.warn { background: linear-gradient(135deg, var(--warning), #fde68a); -webkit-background-clip: text; }
+        .kpi-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .5px; margin-top: 4px; }
+
+        /* Gantt Chart */
+        .chart-card {
+            background: var(--bg-card); border: 1px solid var(--border);
+            border-radius: var(--radius); padding: 20px; margin-bottom: 24px;
+        }
+        .chart-title {
+            font-size: 16px; font-weight: 700; margin-bottom: 4px;
+        }
+        .chart-subtitle { font-size: 13px; color: var(--text-muted); margin-bottom: 16px; }
+
+        #ganttChart { width: 100%; min-height: 400px; }
+
+        /* Comparison Table */
+        .comp-table {
+            width: 100%; border-collapse: separate; border-spacing: 0;
+            background: var(--bg-card); border-radius: var(--radius);
+            overflow: hidden;
+        }
+        .comp-table thead th {
+            font-size: 11px; font-weight: 700; color: var(--text-muted);
+            text-transform: uppercase; letter-spacing: .5px;
+            padding: 12px 16px; text-align: left;
+            background: var(--bg-input); border-bottom: 1px solid var(--border);
+        }
+        .comp-table tbody td {
+            padding: 12px 16px; border-bottom: 1px solid var(--border);
+            font-size: 13px;
+        }
+        .comp-table tbody tr:hover { background: rgba(255,255,255,.02); }
+        .comp-table tbody tr.active-row { background: var(--accent-glow); }
+
+        .feasible-yes {
+            background: var(--success-bg); color: var(--success);
+            padding: 4px 10px; border-radius: 20px; font-weight: 600; font-size: 12px;
+        }
+        .feasible-no {
+            background: var(--danger-bg); color: var(--danger);
+            padding: 4px 10px; border-radius: 20px; font-weight: 600; font-size: 12px;
+        }
+
+        /* Forklift detail stats */
+        .forklift-stats {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 16px; margin-bottom: 24px;
+        }
+        .fk-stat-card {
+            background: var(--bg-card); border: 1px solid var(--border);
+            border-radius: var(--radius); padding: 20px;
+        }
+        .fk-stat-header {
+            display: flex; align-items: center; gap: 10px;
+            margin-bottom: 12px; padding-bottom: 10px;
+            border-bottom: 1px solid var(--border);
+        }
+        .fk-stat-badge {
+            width: 36px; height: 36px; border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 18px;
+        }
+        .fk-stat-name { font-weight: 700; font-size: 14px; }
+        .fk-stat-row {
+            display: flex; justify-content: space-between;
+            padding: 6px 0; font-size: 13px;
+        }
+        .fk-stat-row .label { color: var(--text-muted); }
+        .fk-stat-row .value { font-weight: 600; }
+
+        /* Utilization bar */
+        .util-bar-bg {
+            width: 100%; height: 8px; background: var(--bg-input);
+            border-radius: 4px; margin-top: 8px; overflow: hidden;
+        }
+        .util-bar {
+            height: 100%; border-radius: 4px;
+            transition: width .5s ease;
+        }
+        .util-bar.low { background: var(--success); }
+        .util-bar.mid { background: var(--warning); }
+        .util-bar.high { background: var(--danger); }
+
+        /* Night delegation box */
+        .night-box {
+            background: rgba(139, 92, 246, .08); border: 1px solid rgba(139, 92, 246, .2);
+            border-radius: var(--radius-sm); padding: 14px 18px;
+            font-size: 13px; color: #c4b5fd;
+            display: flex; align-items: flex-start; gap: 10px; margin-bottom: 24px;
+        }
+        .night-box .icon { font-size: 20px; }
+
+        /* Loading */
+        .loading {
+            display: flex; flex-direction: column; align-items: center;
+            justify-content: center; padding: 80px; color: var(--text-muted);
+        }
+        .spinner {
+            width: 40px; height: 40px; border: 3px solid var(--border);
+            border-top-color: var(--accent); border-radius: 50%;
+            animation: spin .8s linear infinite; margin-bottom: 16px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .fade-in { animation: fadeIn .4s ease both; }
+    </style>
+</head>
+<body>
+
+<header class="header">
+    <div class="header-left">
+        <div>
+            <div class="logo">📊 RHI Magnesita</div>
+            <div class="logo-sub">Forklift Süreç Simülasyonu — Zaman Çizelgesi</div>
+        </div>
+    </div>
+    <div class="nav-links">
+        <a href="/" class="nav-link">📝 Veri Girişi</a>
+        <a href="/timeline" class="nav-link active">📊 Deterministik</a>
+        <a href="/timeline-simpy" class="nav-link">🎲 SimPy</a>
+        <a href="/replications" class="nav-link">🔬 Replikasyonlar</a>
+    </div>
+</header>
+
+<main class="main">
+    <div id="loadingState" class="loading">
+        <div class="spinner"></div>
+        <div>Simülasyon çalıştırılıyor...</div>
+    </div>
+
+    <div id="content" style="display:none">
+
+        <!-- Scenario Tabs -->
+        <div class="tabs" id="scenarioTabs"></div>
+
+        <!-- KPIs -->
+        <div class="kpi-grid" id="kpiGrid"></div>
+
+        <!-- Night Delegation Info -->
+        <div class="night-box" id="nightBox" style="display:none">
+            <span class="icon">🌙</span>
+            <div id="nightBoxContent"></div>
+        </div>
+
+        <!-- Gantt Chart -->
+        <div class="chart-card fade-in">
+            <div class="chart-title" id="chartTitle">Zaman Çizelgesi</div>
+            <div class="chart-subtitle" id="chartSubtitle"></div>
+            <div id="ganttChart"></div>
+        </div>
+
+        <!-- Forklift Detail Stats -->
+        <div class="forklift-stats" id="fkStats"></div>
+
+        <!-- Comparison Table -->
+        <div class="chart-card fade-in">
+            <div class="chart-title">Senaryo Karşılaştırma Tablosu</div>
+            <div class="chart-subtitle">Tüm senaryoların özet karşılaştırması</div>
+            <table class="comp-table" id="compTable">
+                <thead>
+                    <tr>
+                        <th>Senaryo</th>
+                        <th>Forklift</th>
+                        <th>Toplam İş (dk)</th>
+                        <th>Boş (dk)</th>
+                        <th>Ort. Kullanım</th>
+                        <th>Maks Gecikme</th>
+                        <th>İhlal</th>
+                        <th>Uygunluk</th>
+                    </tr>
+                </thead>
+                <tbody id="compBody"></tbody>
+            </table>
+        </div>
+    </div>
+</main>
+
+<script>
+// ─── State ─────────────────────────────────────
+let simData = null;
+let activeScenario = 'mevcut';
+
+const SCENARIO_ORDER = [
+    'mevcut', 'gece_delegasyonu',
+    'f1_f2', 'f1_f3', 'f2_f3',
+    'gece_f1_f2', 'gece_f1_f3', 'gece_f2_f3'
+];
+
+const SCENARIO_ICONS = {
+    'mevcut': '🏭', 'gece_delegasyonu': '🌙',
+    'f1_f2': '🔀', 'f1_f3': '🔀', 'f2_f3': '🔀',
+    'gece_f1_f2': '🌙🔀', 'gece_f1_f3': '🌙🔀', 'gece_f2_f3': '🌙🔀'
+};
+
+const ACTIVITY_COLORS = {
+    'Tuğla Dolu Paleti Alma': '#6366f1',
+    'Boş Palet Alma': '#818cf8',
+    'Iskarta Boşaltma': '#a5b4fc',
+    'Karton, Bant vb': '#c7d2fe',
+    'Tuğla Boşaltmadan Makineye': '#f59e0b',
+    'Tuğla Boşaltmadan Alana': '#fbbf24',
+    'Makinadan Stoğa': '#fcd34d',
+    'Alandan Stoğa': '#fde68a',
+    "Stoktaki tuğla dolu paletlerin TIR'a yüklenmesi": '#06b6d4',
+};
+
+const FK_COLORS_BG = {
+    'Forklift 1': 'rgba(99,102,241,.15)',
+    'Forklift 2': 'rgba(245,158,11,.15)',
+    'Forklift 3': 'rgba(6,182,212,.15)',
+};
+
+// ─── Init ──────────────────────────────────────
+document.addEventListener('DOMContentLoaded', async () => {
+    const res = await fetch('/api/simulate');
+    simData = await res.json();
+    document.getElementById('loadingState').style.display = 'none';
+    document.getElementById('content').style.display = 'block';
+    renderTabs();
+    renderCompTable();
+    selectScenario('mevcut');
+});
+
+// ─── Tabs ──────────────────────────────────────
+function renderTabs() {
+    const container = document.getElementById('scenarioTabs');
+    container.innerHTML = SCENARIO_ORDER.filter(k => simData.scenarios[k]).map(key => {
+        const sc = simData.scenarios[key];
+        const icon = SCENARIO_ICONS[key] || '📊';
+        const badge = sc.feasible
+            ? '<span class="badge ok">✓</span>'
+            : `<span class="badge fail">${sc.total_violations} ihlal</span>`;
+        return `<button class="tab" data-key="${key}" onclick="selectScenario('${key}')">
+            ${icon} ${sc.name} ${badge}
+        </button>`;
+    }).join('');
+}
+
+function selectScenario(key) {
+    activeScenario = key;
+    document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.key === key));
+    document.querySelectorAll('.comp-table tbody tr').forEach(r => r.classList.toggle('active-row', r.dataset.key === key));
+    const sc = simData.scenarios[key];
+    renderKPIs(sc);
+    renderGantt(sc, key);
+    renderFkStats(sc);
+    renderNightBox(sc, key);
+}
+
+// ─── KPIs ──────────────────────────────────────
+function renderKPIs(sc) {
+    const stats = Object.values(sc.stats);
+    const totalWork = stats.reduce((s, x) => s + x.total_work_dk, 0);
+    const totalIdle = stats.reduce((s, x) => s + x.idle_dk, 0);
+    const avgUtil = stats.reduce((s, x) => s + x.utilization_pct, 0) / stats.length;
+    const maxDelay = Math.max(...stats.map(x => x.max_delay_dk));
+    const totalViol = stats.reduce((s, x) => s + x.violations, 0);
+    const totalEvents = stats.reduce((s, x) => s + x.total_events, 0);
+
+    document.getElementById('kpiGrid').innerHTML = `
+        <div class="kpi"><div class="kpi-value">${sc.forklift_count}</div><div class="kpi-label">Forklift</div></div>
+        <div class="kpi"><div class="kpi-value">${totalWork}</div><div class="kpi-label">Toplam İş (dk)</div></div>
+        <div class="kpi"><div class="kpi-value ${avgUtil > 80 ? 'bad' : avgUtil > 60 ? 'warn' : ''}">${avgUtil.toFixed(1)}%</div><div class="kpi-label">Ort. Kullanım</div></div>
+        <div class="kpi"><div class="kpi-value">${totalIdle}</div><div class="kpi-label">Toplam Boş (dk)</div></div>
+        <div class="kpi"><div class="kpi-value ${maxDelay > 30 ? 'bad' : maxDelay > 10 ? 'warn' : ''}">${maxDelay} dk</div><div class="kpi-label">Maks Gecikme</div></div>
+        <div class="kpi"><div class="kpi-value ${totalViol > 0 ? 'bad' : 'good'}">${totalViol > 0 ? '❌ ' + totalViol : '✅ 0'}</div><div class="kpi-label">İhlal Sayısı</div></div>
+        <div class="kpi"><div class="kpi-value">${totalEvents}</div><div class="kpi-label">Toplam Olay</div></div>
+    `;
+}
+
+// ─── Gantt Chart ───────────────────────────────
+function renderGantt(sc, key) {
+    const traces = [];
+    const forklifts = Object.keys(sc.events);
+
+    // Break bands
+    const breaks = simData.molalar.map(m => ({
+        name: m.ad,
+        start: m.baslangic,
+        end: m.bitis
+    }));
+
+    const refDate = '2026-01-01';
+
+    forklifts.forEach((fkName, fkIdx) => {
+        const events = sc.events[fkName];
+        if (!events) return;
+
+        // Group by activity for legend
+        const grouped = {};
+        events.forEach(e => {
+            if (e.status === 'missed' || !e.start) return;
+            if (!grouped[e.activity]) grouped[e.activity] = [];
+            grouped[e.activity].push(e);
+        });
+
+        Object.entries(grouped).forEach(([actName, evts]) => {
+            const color = ACTIVITY_COLORS[actName] || '#6366f1';
+            const borderColors = evts.map(e => {
+                if (e.status === 'violation') return '#ef4444';
+                if (e.status === 'delayed') return '#f59e0b';
+                return color;
+            });
+
+            traces.push({
+                type: 'bar',
+                orientation: 'h',
+                y: evts.map(() => fkName),
+                x: evts.map(e => {
+                    const [sh, sm] = e.end.split(':').map(Number);
+                    const [shs, sms] = e.start.split(':').map(Number);
+                    return ((sh * 60 + sm) - (shs * 60 + sms)) / 60; // hours
+                }),
+                base: evts.map(e => {
+                    const [h, m] = e.start.split(':').map(Number);
+                    return h + m / 60;
+                }),
+                name: actName,
+                marker: {
+                    color: color,
+                    line: { color: borderColors, width: evts.map(e => e.status !== 'ok' ? 2 : 0) }
+                },
+                hovertemplate: evts.map(e =>
+                    `<b>${e.activity}</b><br>` +
+                    `Planlanan: ${e.scheduled_start}<br>` +
+                    `Gerçekleşen: ${e.start} — ${e.end}<br>` +
+                    `Net Gecikme: ${e.delay} dk` +
+                    (e.break_in_delay > 0 ? ` (brüt: ${e.gross_delay} dk, mola: ${e.break_in_delay} dk)` : '') + `<br>` +
+                    `Öncelik: ${e.priority || '—'}<br>` +
+                    `Durum: ${e.status === 'ok' ? '✅ Zamanında' : e.status === 'delayed' ? '⚠️ Gecikmeli' : '❌ İhlal'}<extra></extra>`
+                ),
+                showlegend: fkIdx === 0,
+                legendgroup: actName,
+            });
+        });
+    });
+
+    // Break shapes
+    const shapes = breaks.map(b => {
+        const [bh, bm] = b.start.split(':').map(Number);
+        const [eh, em] = b.end.split(':').map(Number);
+        return {
+            type: 'rect',
+            xref: 'x', yref: 'paper',
+            x0: bh + bm / 60, x1: eh + em / 60,
+            y0: 0, y1: 1,
+            fillcolor: 'rgba(107,114,128,0.15)',
+            line: { width: 0 },
+        };
+    });
+
+    // Break annotations
+    const annotations = breaks.map(b => {
+        const [bh, bm] = b.start.split(':').map(Number);
+        const [eh, em] = b.end.split(':').map(Number);
+        return {
+            x: (bh + bm / 60 + eh + em / 60) / 2,
+            y: 1.02, yref: 'paper', xref: 'x',
+            text: b.name, showarrow: false,
+            font: { size: 10, color: '#6b7280' },
+        };
+    });
+
+    const layout = {
+        barmode: 'stack',
+        paper_bgcolor: '#222632',
+        plot_bgcolor: '#1a1d27',
+        font: { family: 'Inter', color: '#eef0f6', size: 12 },
+        xaxis: {
+            title: 'Saat',
+            range: [7.9, 16.1],
+            dtick: 1,
+            tickformat: '.0f',
+            ticksuffix: ':00',
+            gridcolor: '#2e3347',
+            linecolor: '#2e3347',
+        },
+        yaxis: {
+            autorange: 'reversed',
+            gridcolor: '#2e3347',
+            linecolor: '#2e3347',
+        },
+        legend: {
+            orientation: 'h', y: -0.15,
+            font: { size: 11 },
+            bgcolor: 'rgba(0,0,0,0)',
+        },
+        shapes: shapes,
+        annotations: annotations,
+        margin: { l: 160, r: 20, t: 30, b: 60 },
+        height: Math.max(350, forklifts.length * 120 + 100),
+        hoverlabel: {
+            bgcolor: '#222632',
+            bordercolor: '#6366f1',
+            font: { family: 'Inter', size: 12 }
+        }
+    };
+
+    document.getElementById('chartTitle').textContent = sc.name + ' — Zaman Çizelgesi';
+    document.getElementById('chartSubtitle').textContent = sc.description;
+    Plotly.react('ganttChart', traces, layout, { responsive: true, displayModeBar: true });
+}
+
+// ─── Forklift Detail Stats ─────────────────────
+function renderFkStats(sc) {
+    const container = document.getElementById('fkStats');
+    container.innerHTML = Object.entries(sc.stats).map(([name, st]) => {
+        const utilClass = st.utilization_pct > 80 ? 'high' : st.utilization_pct > 50 ? 'mid' : 'low';
+        const color = name.includes('1') ? 'rgba(99,102,241,.15)' : name.includes('3') ? 'rgba(6,182,212,.15)' : 'rgba(245,158,11,.15)';
+        const emoji = name.includes('1') ? '🧱' : name.includes('3') ? '🚛' : '📦';
+
+        return `
+        <div class="fk-stat-card fade-in">
+            <div class="fk-stat-header">
+                <div class="fk-stat-badge" style="background:${color}">${emoji}</div>
+                <div class="fk-stat-name">${name}</div>
+            </div>
+            <div class="fk-stat-row"><span class="label">Toplam İş</span><span class="value">${st.total_work_dk} dk</span></div>
+            <div class="fk-stat-row"><span class="label">Boş Zaman</span><span class="value">${st.idle_dk} dk</span></div>
+            <div class="fk-stat-row"><span class="label">Kullanım</span><span class="value">${st.utilization_pct}%</span></div>
+            <div class="util-bar-bg"><div class="util-bar ${utilClass}" style="width:${st.utilization_pct}%"></div></div>
+            <div class="fk-stat-row" style="margin-top:8px"><span class="label">Toplam Olay</span><span class="value">${st.total_events}</span></div>
+            <div class="fk-stat-row"><span class="label">Zamanında</span><span class="value" style="color:var(--success)">${st.ok_count}</span></div>
+            <div class="fk-stat-row"><span class="label">Gecikmeli</span><span class="value" style="color:var(--warning)">${st.delayed_count}</span></div>
+            <div class="fk-stat-row"><span class="label">İhlal</span><span class="value" style="color:var(--danger)">${st.violation_count}</span></div>
+            <div class="fk-stat-row"><span class="label">Maks Gecikme</span><span class="value">${st.max_delay_dk} dk</span></div>
+        </div>`;
+    }).join('');
+}
+
+// ─── Night Box ─────────────────────────────────
+function renderNightBox(sc, key) {
+    const box = document.getElementById('nightBox');
+    if (sc.night_delegated && sc.night_delegated.length > 0) {
+        box.style.display = 'flex';
+        const items = sc.night_delegated.map(d => `<strong>${d.activity}</strong> (${d.forklift})`).join(', ');
+        document.getElementById('nightBoxContent').innerHTML =
+            `Gece vardiyasına devredilen faaliyetler: ${items}<br>Bu faaliyetler gündüz programından çıkarıldı.`;
+    } else if (key.startsWith('gece_')) {
+        box.style.display = 'flex';
+        document.getElementById('nightBoxContent').innerHTML =
+            'Bu senaryoda gece vardiyasına atanabilir faaliyetler gündüz programından çıkarılmıştır.';
+    } else {
+        box.style.display = 'none';
+    }
+}
+
+// ─── Comparison Table ──────────────────────────
+function renderCompTable() {
+    const body = document.getElementById('compBody');
+    body.innerHTML = simData.summary.map(r => `
+        <tr data-key="${r.key}" onclick="selectScenario('${r.key}')" style="cursor:pointer">
+            <td style="font-weight:600">${r.name}</td>
+            <td>${r.forklift_count}</td>
+            <td>${r.total_work_dk}</td>
+            <td>${r.total_idle_dk}</td>
+            <td>${r.avg_utilization_pct}%</td>
+            <td>${r.max_delay_dk} dk</td>
+            <td>${r.total_violations}</td>
+            <td><span class="${r.feasible ? 'feasible-yes' : 'feasible-no'}">${r.feasible ? '✅ Uygun' : '❌ Uygun Değil'}</span></td>
+        </tr>
+    `).join('');
+}
+</script>
+</body>
+</html>

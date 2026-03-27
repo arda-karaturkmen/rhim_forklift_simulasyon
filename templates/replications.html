@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RHI Magnesita — Replikasyon Detayları</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+    <style>
+        :root {
+            --bg-primary: #0f1117; --bg-secondary: #1a1d27; --bg-card: #222632;
+            --bg-input: #161922; --border: #2e3347; --border-focus: #6366f1;
+            --text-primary: #eef0f6; --text-secondary: #9ca3b8; --text-muted: #6b7280;
+            --accent: #6366f1; --accent-hover: #818cf8; --accent-glow: rgba(99,102,241,.15);
+            --success: #22c55e; --success-bg: rgba(34,197,94,.12);
+            --danger: #ef4444; --danger-bg: rgba(239,68,68,.12);
+            --warning: #f59e0b; --warning-bg: rgba(245,158,11,.12);
+            --radius: 12px; --radius-sm: 8px;
+        }
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { font-family:'Inter',-apple-system,sans-serif; background:var(--bg-primary); color:var(--text-primary); line-height:1.6; min-height:100vh; }
+
+        .header { background:linear-gradient(135deg,var(--bg-secondary),var(--bg-card)); border-bottom:1px solid var(--border); padding:20px 40px; display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:100; }
+        .header-left { display:flex; align-items:center; gap:16px; }
+        .logo { font-size:24px; font-weight:800; background:linear-gradient(135deg,#8b5cf6,#06b6d4); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+        .logo-sub { font-size:13px; color:var(--text-muted); }
+        .nav-links { display:flex; gap:8px; }
+        .nav-link { padding:8px 16px; border-radius:var(--radius-sm); font-size:14px; font-weight:600; cursor:pointer; border:1px solid var(--border); background:transparent; color:var(--text-secondary); text-decoration:none; transition:all .2s; }
+        .nav-link:hover { background:var(--bg-card); color:var(--text-primary); }
+        .nav-link.active { background:linear-gradient(135deg,#8b5cf6,#6366f1); color:white; border-color:transparent; }
+
+        .main { max-width:1600px; margin:0 auto; padding:24px 40px; }
+
+        .controls { display:flex; gap:12px; align-items:center; margin-bottom:20px; flex-wrap:wrap; }
+        .controls select, .controls button { padding:10px 16px; border-radius:var(--radius-sm); font-size:13px; font-weight:600; border:1px solid var(--border); background:var(--bg-card); color:var(--text-primary); cursor:pointer; font-family:'Inter'; }
+        .controls select:focus, .controls button:focus { outline:none; border-color:var(--accent); }
+        .controls button { background:linear-gradient(135deg,#8b5cf6,#6366f1); border-color:transparent; color:white; }
+
+        .card { background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius); padding:20px; margin-bottom:20px; }
+        .card-title { font-size:16px; font-weight:700; margin-bottom:4px; }
+        .card-sub { font-size:13px; color:var(--text-muted); margin-bottom:16px; }
+
+        .rep-table { width:100%; border-collapse:separate; border-spacing:0; font-size:13px; }
+        .rep-table thead th { font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:.5px; padding:10px 12px; text-align:left; background:var(--bg-input); border-bottom:1px solid var(--border); white-space:nowrap; position:sticky; top:0; cursor:pointer; user-select:none; }
+        .rep-table thead th:hover { color:var(--text-primary); }
+        .rep-table tbody td { padding:10px 12px; border-bottom:1px solid var(--border); }
+        .rep-table tbody tr { cursor:pointer; transition:background .15s; }
+        .rep-table tbody tr:hover { background:rgba(99,102,241,.08); }
+        .rep-table tbody tr.active { background:var(--accent-glow); border-left:3px solid var(--accent); }
+        .rep-table tbody tr.active td:first-child { padding-left:9px; }
+
+        .badge-ok { background:var(--success-bg); color:var(--success); padding:3px 8px; border-radius:10px; font-weight:600; font-size:11px; }
+        .badge-warn { background:var(--warning-bg); color:var(--warning); padding:3px 8px; border-radius:10px; font-weight:600; font-size:11px; }
+        .badge-fail { background:var(--danger-bg); color:var(--danger); padding:3px 8px; border-radius:10px; font-weight:600; font-size:11px; }
+
+        .util-mini { width:60px; height:5px; background:var(--bg-primary); border-radius:3px; display:inline-block; vertical-align:middle; overflow:hidden; }
+        .util-mini-bar { height:100%; border-radius:3px; }
+
+        .kpi-strip { display:flex; gap:12px; margin-bottom:16px; flex-wrap:wrap; }
+        .kpi-mini { background:var(--bg-input); border:1px solid var(--border); border-radius:var(--radius-sm); padding:12px 16px; text-align:center; flex:1; min-width:120px; }
+        .kpi-mini-val { font-size:22px; font-weight:800; background:linear-gradient(135deg,#8b5cf6,#06b6d4); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+        .kpi-mini-lbl { font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.5px; margin-top:2px; }
+
+        .two-col { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+        @media(max-width:1000px) { .two-col { grid-template-columns:1fr; } }
+
+        .loading { display:flex; flex-direction:column; align-items:center; justify-content:center; padding:80px; color:var(--text-muted); }
+        .spinner { width:40px; height:40px; border:3px solid var(--border); border-top-color:#8b5cf6; border-radius:50%; animation:spin .8s linear infinite; margin-bottom:16px; }
+        @keyframes spin { to { transform:rotate(360deg); } }
+        @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+        .fade-in { animation:fadeIn .4s ease both; }
+
+        .event-table { width:100%; border-collapse:separate; border-spacing:0; font-size:12px; max-height:400px; overflow-y:auto; display:block; }
+        .event-table thead { position:sticky; top:0; z-index:1; }
+        .event-table thead th { font-size:10px; font-weight:700; color:var(--text-muted); text-transform:uppercase; padding:8px 10px; text-align:left; background:var(--bg-input); border-bottom:1px solid var(--border); }
+        .event-table tbody td { padding:6px 10px; border-bottom:1px solid rgba(46,51,71,.5); }
+        .event-table tbody tr:hover { background:rgba(255,255,255,.02); }
+    </style>
+</head>
+<body>
+
+<header class="header">
+    <div class="header-left">
+        <div>
+            <div class="logo">🔬 RHI Magnesita</div>
+            <div class="logo-sub">Replikasyon Detay Analizi — Her Koşumun Detayı</div>
+        </div>
+    </div>
+    <div class="nav-links">
+        <a href="/" class="nav-link">📝 Veri Girişi</a>
+        <a href="/timeline" class="nav-link">📊 Deterministik</a>
+        <a href="/timeline-simpy" class="nav-link">🎲 SimPy</a>
+        <a href="/replications" class="nav-link active">🔬 Replikasyonlar</a>
+    </div>
+</header>
+
+<main class="main">
+    <div id="loadingState" class="loading">
+        <div class="spinner"></div>
+        <div>SimPy simülasyonu çalıştırılıyor...</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:8px">50 replikasyon çalıştırılıyor, birkaç saniye sürebilir</div>
+    </div>
+
+    <div id="content" style="display:none">
+        <div class="controls">
+            <label style="font-size:13px;font-weight:600;color:var(--text-secondary)">Senaryo:</label>
+            <select id="scenarioSelect"></select>
+            <label style="font-size:13px;font-weight:600;color:var(--text-secondary);margin-left:12px">Forklift:</label>
+            <select id="fkSelect"></select>
+        </div>
+
+        <!-- Summary KPIs for selected forklift -->
+        <div class="kpi-strip" id="kpiStrip"></div>
+
+        <!-- Replication List -->
+        <div class="card fade-in">
+            <div class="card-title" id="repTitle">📋 Tüm Replikasyonlar</div>
+            <div class="card-sub" id="repSub">Her satır = 1 simülasyon koşumu. Üzerine tıklayarak Gantt çizelgesini görün.</div>
+            <div style="max-height:500px;overflow-y:auto">
+                <table class="rep-table">
+                    <thead><tr>
+                        <th data-sort="id">#</th>
+                        <th data-sort="utilization_pct">Kullanım %</th>
+                        <th data-sort="total_work_dk">İş (dk)</th>
+                        <th data-sort="idle_dk">Boş (dk)</th>
+                        <th data-sort="completed">Tamamlanan</th>
+                        <th data-sort="violations">İhlal</th>
+                        <th data-sort="avg_delay">Ort. Gecikme</th>
+                        <th data-sort="max_delay">Maks Gecikme</th>
+                        <th data-sort="avg_wait">Ort. Bekleme</th>
+                        <th>Durum</th>
+                    </tr></thead>
+                    <tbody id="repBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Gantt Chart for Selected Replication -->
+        <div class="card fade-in">
+            <div class="card-title" id="ganttTitle">📊 Zaman Çizelgesi — Koşum seçin</div>
+            <div class="card-sub" id="ganttSub">Tablodaki bir koşuma tıklayın</div>
+            <div id="ganttChart" style="min-height:250px"></div>
+        </div>
+
+        <!-- Event Detail Table -->
+        <div class="two-col">
+            <div class="card fade-in">
+                <div class="card-title">📋 Olay Detayları</div>
+                <div class="card-sub" id="eventSub">Seçili koşumun tüm olayları</div>
+                <table class="event-table">
+                    <thead><tr>
+                        <th>Faaliyet</th><th>Plan</th><th>Gerçek</th><th>Bitiş</th>
+                        <th>Gecikme</th><th>Bekleme</th><th>Durum</th>
+                    </tr></thead>
+                    <tbody id="eventBody"></tbody>
+                </table>
+            </div>
+            <div class="card fade-in">
+                <div class="card-title">📊 Dağılım</div>
+                <div class="card-sub">Seçili koşumun kırmızıyla işaretlendiği histogram</div>
+                <div id="histChart" style="height:300px"></div>
+            </div>
+        </div>
+    </div>
+</main>
+
+<script>
+let simData = null;
+let activeScenario = 'mevcut';
+let activeFk = '';
+let activeRepIdx = 0;
+const SCENARIO_ORDER = ['mevcut','gece_delegasyonu','f1_f2','f1_f3','f2_f3','gece_f1_f2','gece_f1_f3','gece_f2_f3'];
+
+const ACT_COLORS = {
+    'Tuğla Dolu Paleti Alma':'#6366f1','Boş Palet Alma':'#818cf8','Iskarta Boşaltma':'#a5b4fc',
+    'Tuğla Boşaltmadan Makineye':'#f59e0b','Tuğla Boşaltmadan Alana':'#fbbf24',
+    'Makinadan Stoğa':'#fcd34d','Alandan Stoğa':'#fde68a',
+    "Stoktaki tuğla dolu paletlerin TIR'a yüklenmesi":'#06b6d4',
+};
+
+document.addEventListener('DOMContentLoaded', async () => {
+    const res = await fetch('/api/simulate-simpy?n=50');
+    simData = await res.json();
+    document.getElementById('loadingState').style.display = 'none';
+    document.getElementById('content').style.display = 'block';
+
+    // Populate scenario selector
+    const sel = document.getElementById('scenarioSelect');
+    SCENARIO_ORDER.filter(k => simData.scenarios[k]).forEach(key => {
+        const sc = simData.scenarios[key];
+        const opt = document.createElement('option');
+        opt.value = key;
+        opt.textContent = sc.name;
+        sel.appendChild(opt);
+    });
+    sel.onchange = () => { activeScenario = sel.value; populateFkSelect(); renderAll(); };
+
+    populateFkSelect();
+    renderAll();
+});
+
+function populateFkSelect() {
+    const sc = simData.scenarios[activeScenario];
+    const fkSel = document.getElementById('fkSelect');
+    fkSel.innerHTML = '';
+    Object.keys(sc.forkliftler).forEach((name, i) => {
+        const opt = document.createElement('option');
+        opt.value = name;
+        opt.textContent = name;
+        fkSel.appendChild(opt);
+        if (i === 0) activeFk = name;
+    });
+    fkSel.value = activeFk;
+    fkSel.onchange = () => { activeFk = fkSel.value; activeRepIdx = 0; renderAll(); };
+}
+
+function renderAll() {
+    const sc = simData.scenarios[activeScenario];
+    const fk = sc.forkliftler[activeFk];
+    if (!fk) return;
+
+    renderKPIs(fk);
+    renderRepTable(fk);
+    selectRep(0);
+}
+
+function renderKPIs(fk) {
+    const st = fk.stats;
+    document.getElementById('kpiStrip').innerHTML = `
+        <div class="kpi-mini"><div class="kpi-mini-val">${st.utilization.mean}%</div><div class="kpi-mini-lbl">Ort. Kullanım</div></div>
+        <div class="kpi-mini"><div class="kpi-mini-val">${st.total_work.mean}</div><div class="kpi-mini-lbl">Ort. İş (dk)</div></div>
+        <div class="kpi-mini"><div class="kpi-mini-val">${st.idle.mean}</div><div class="kpi-mini-lbl">Ort. Boş (dk)</div></div>
+        <div class="kpi-mini"><div class="kpi-mini-val">${st.max_delay.mean}</div><div class="kpi-mini-lbl">Ort. Maks Gecikme</div></div>
+        <div class="kpi-mini"><div class="kpi-mini-val">${st.violations.mean}</div><div class="kpi-mini-lbl">Ort. İhlal</div></div>
+        <div class="kpi-mini"><div class="kpi-mini-val">${fk.n_reps}</div><div class="kpi-mini-lbl">Replikasyon</div></div>
+    `;
+}
+
+function renderRepTable(fk) {
+    const reps = fk.replications;
+    if (!reps || reps.length === 0) {
+        document.getElementById('repBody').innerHTML = '<tr><td colspan="10" style="text-align:center;color:var(--text-muted)">Replikasyon verisi yok</td></tr>';
+        return;
+    }
+
+    document.getElementById('repTitle').textContent = `📋 ${activeFk} — ${reps.length} Replikasyon`;
+
+    document.getElementById('repBody').innerHTML = reps.map((r, i) => {
+        const u = r.utilization_pct;
+        const uColor = u > 80 ? 'var(--danger)' : u > 50 ? 'var(--warning)' : 'var(--success)';
+        const badge = r.violations > 0 ? `<span class="badge-fail">❌ ${r.violations}</span>` : '<span class="badge-ok">✅ 0</span>';
+        const status = r.violations > 0 ? `<span class="badge-fail">İhlal</span>` : r.max_delay > 10 ? `<span class="badge-warn">Gecikme</span>` : `<span class="badge-ok">Normal</span>`;
+
+        return `<tr data-idx="${i}" onclick="selectRep(${i})" class="${i === activeRepIdx ? 'active' : ''}">
+            <td style="font-weight:700;color:var(--text-muted)">${r.id}</td>
+            <td>
+                <span style="font-weight:700;color:${uColor}">${u}%</span>
+                <div class="util-mini"><div class="util-mini-bar" style="width:${u}%;background:${uColor}"></div></div>
+            </td>
+            <td>${r.total_work_dk}</td>
+            <td>${r.idle_dk}</td>
+            <td>${r.completed}</td>
+            <td>${badge}</td>
+            <td>${r.avg_delay} dk</td>
+            <td style="font-weight:${r.max_delay > 15 ? '700' : '400'};color:${r.max_delay > 15 ? 'var(--danger)' : 'inherit'}">${r.max_delay} dk</td>
+            <td>${r.avg_wait} dk</td>
+            <td>${status}</td>
+        </tr>`;
+    }).join('');
+}
+
+function selectRep(idx) {
+    activeRepIdx = idx;
+    const sc = simData.scenarios[activeScenario];
+    const fk = sc.forkliftler[activeFk];
+    const reps = fk.replications;
+    if (!reps || !reps[idx]) return;
+
+    // Highlight row
+    document.querySelectorAll('.rep-table tbody tr').forEach(tr => tr.classList.toggle('active', parseInt(tr.dataset.idx) === idx));
+
+    const rep = reps[idx];
+    renderGantt(rep, idx);
+    renderEvents(rep);
+    renderHistHighlight(fk, idx);
+}
+
+function renderGantt(rep, idx) {
+    const events = rep.events;
+    if (!events || events.length === 0) {
+        document.getElementById('ganttTitle').textContent = `📊 Koşum #${rep.id} — Olay yok`;
+        Plotly.purge('ganttChart');
+        return;
+    }
+
+    document.getElementById('ganttTitle').textContent = `📊 Koşum #${rep.id} — Zaman Çizelgesi`;
+    document.getElementById('ganttSub').textContent = `Kullanım: ${rep.utilization_pct}% | İş: ${rep.total_work_dk}dk | Maks Gecikme: ${rep.max_delay}dk | İhlal: ${rep.violations}`;
+
+    const grouped = {};
+    events.forEach(e => { if (e.status === 'missed' || !e.start) return; if (!grouped[e.activity]) grouped[e.activity] = []; grouped[e.activity].push(e); });
+
+    const breaks = simData.molalar.map(m => ({ name: m.ad, start: m.baslangic, end: m.bitis }));
+    const traces = [];
+
+    Object.entries(grouped).forEach(([actName, evts]) => {
+        const color = ACT_COLORS[actName] || '#6366f1';
+        traces.push({
+            type: 'bar', orientation: 'h',
+            y: evts.map(() => activeFk),
+            x: evts.map(e => { const [sh,sm] = e.end.split(':').map(Number); const [shs,sms] = e.start.split(':').map(Number); return ((sh*60+sm) - (shs*60+sms)) / 60; }),
+            base: evts.map(e => { const [h,m] = e.start.split(':').map(Number); return h + m/60; }),
+            name: actName,
+            marker: { color, line: { color: evts.map(e => e.status === 'violation' ? '#ef4444' : e.status === 'delayed' ? '#f59e0b' : color), width: evts.map(e => e.status !== 'ok' ? 2 : 0) } },
+            hovertemplate: evts.map(e => `<b>${e.activity}</b><br>Plan: ${e.scheduled_start}<br>Gerçek: ${e.start}—${e.end}<br>Net Gecikme: ${e.net_delay}dk<br>Bekleme: ${e.wait_time}dk<br>Durum: ${e.status === 'ok' ? '✅' : '⚠️ ' + e.status}<extra></extra>`),
+        });
+    });
+
+    const shapes = breaks.map(b => { const [bh,bm]=b.start.split(':').map(Number); const [eh,em]=b.end.split(':').map(Number);
+        return { type:'rect', xref:'x', yref:'paper', x0:bh+bm/60, x1:eh+em/60, y0:0, y1:1, fillcolor:'rgba(107,114,128,.15)', line:{width:0} }; });
+
+    Plotly.react('ganttChart', traces, {
+        barmode: 'stack', paper_bgcolor: '#222632', plot_bgcolor: '#1a1d27',
+        font: { family: 'Inter', color: '#eef0f6', size: 12 },
+        xaxis: { title: 'Saat', range: [7.9, 16.1], dtick: 1, tickformat: '.0f', ticksuffix: ':00', gridcolor: '#2e3347' },
+        yaxis: { autorange: 'reversed', gridcolor: '#2e3347' },
+        legend: { orientation: 'h', y: -0.2, font: { size: 11 }, bgcolor: 'rgba(0,0,0,0)' },
+        shapes, margin: { l: 120, r: 20, t: 20, b: 60 }, height: 200,
+        hoverlabel: { bgcolor: '#222632', bordercolor: '#8b5cf6', font: { family: 'Inter', size: 12 } }
+    }, { responsive: true });
+}
+
+function renderEvents(rep) {
+    const events = rep.events || [];
+    document.getElementById('eventSub').textContent = `Koşum #${rep.id} — ${events.length} olay`;
+
+    document.getElementById('eventBody').innerHTML = events.map(e => {
+        const statusCls = e.status === 'violation' ? 'badge-fail' : e.status === 'delayed' ? 'badge-warn' : 'badge-ok';
+        const statusText = e.status === 'ok' ? '✅' : e.status === 'violation' ? '❌ İhlal' : '⚠️ Gecikme';
+        return `<tr>
+            <td style="font-weight:500">${e.activity}</td>
+            <td>${e.scheduled_start}</td>
+            <td>${e.start}</td>
+            <td>${e.end}</td>
+            <td>${e.net_delay > 0.5 ? '<span style="color:var(--warning);font-weight:600">' + e.net_delay + ' dk</span>' : '—'}</td>
+            <td>${e.wait_time > 0 ? e.wait_time + ' dk' : '—'}</td>
+            <td><span class="${statusCls}">${statusText}</span></td>
+        </tr>`;
+    }).join('');
+}
+
+function renderHistHighlight(fk, selectedIdx) {
+    const reps = fk.replications;
+    if (!reps) return;
+
+    const utils = reps.map(r => r.utilization_pct);
+    const selectedVal = reps[selectedIdx].utilization_pct;
+
+    Plotly.react('histChart', [
+        {
+            x: utils, type: 'histogram', name: 'Dağılım',
+            marker: { color: '#6366f1', opacity: 0.6 }, nbinsx: 15,
+        },
+        {
+            x: [selectedVal], type: 'histogram', name: `Koşum #${reps[selectedIdx].id}`,
+            marker: { color: '#ef4444', opacity: 0.9 }, nbinsx: 15,
+        }
+    ], {
+        barmode: 'overlay', paper_bgcolor: '#222632', plot_bgcolor: '#1a1d27',
+        font: { family: 'Inter', color: '#eef0f6', size: 11 },
+        xaxis: { title: 'Kullanım (%)', gridcolor: '#2e3347' },
+        yaxis: { title: 'Frekans', gridcolor: '#2e3347' },
+        legend: { font: { size: 11 }, bgcolor: 'rgba(0,0,0,0)' },
+        margin: { l: 50, r: 20, t: 10, b: 40 }, height: 280,
+        shapes: [{ type: 'line', x0: selectedVal, x1: selectedVal, y0: 0, y1: 1, yref: 'paper', line: { color: '#ef4444', width: 2, dash: 'dot' } }],
+        annotations: [{ x: selectedVal, y: 1.05, yref: 'paper', text: `#${reps[selectedIdx].id}: ${selectedVal}%`, showarrow: false, font: { size: 11, color: '#ef4444' } }],
+    }, { responsive: true });
+}
+
+// Sort columns
+document.querySelector('.rep-table thead').addEventListener('click', e => {
+    const th = e.target.closest('th');
+    if (!th || !th.dataset.sort) return;
+    const key = th.dataset.sort;
+    const sc = simData.scenarios[activeScenario];
+    const fk = sc.forkliftler[activeFk];
+    if (!fk.replications) return;
+
+    // Toggle sort direction
+    th._sortDir = !(th._sortDir || false);
+    const dir = th._sortDir ? 1 : -1;
+    fk.replications.sort((a, b) => (a[key] - b[key]) * dir);
+    renderRepTable(fk);
+    selectRep(0);
+});
+</script>
+</body>
+</html>
