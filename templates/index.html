@@ -521,6 +521,7 @@
                 <a href="/timeline" class="nav-link">📊 Deterministik</a>
                 <a href="/timeline-simpy" class="nav-link">🎲 SimPy</a>
                 <a href="/replications" class="nav-link">🔬 Replikasyonlar</a>
+                <a href="/sensitivity" class="nav-link">🎯 Duyarlılık</a>
             </nav>
             <button class="btn btn-ghost" onclick="exportData()">📥 JSON</button>
             <button class="btn btn-primary" onclick="saveAll()">💾 Kaydet</button>
@@ -584,6 +585,22 @@
             </div>
         </div>
 
+        <!-- Simülasyon Ayarları -->
+        <div class="section animate-in" style="animation-delay:.28s">
+            <div class="section-header">
+                <div class="section-title"><span class="icon">⚙️</span> Simülasyon Ayarları</div>
+            </div>
+            <div class="card">
+                <div class="form-group" style="max-width: 400px;">
+                    <span class="form-label" title="Tuğla Boşaltma (F1) alanından paketlemeye gelen paletlerin tüm üretime oranı">Paketlemeye Gelenlerin F1'den Gelme Oranı (%)</span>
+                    <div class="composite-input">
+                        <input type="number" class="form-input" id="f1PaketlemeOrani" value="80" min="0" max="100" step="1" style="width: 100%;">
+                        <span style="color:var(--text-muted);font-size:13px;padding-left:8px;">%</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Forklift Activities -->
         <div class="section animate-in" style="animation-delay:.3s">
             <div class="section-header">
@@ -618,14 +635,18 @@
         document.addEventListener('DOMContentLoaded', loadData);
 
         async function loadData() {
-            const [vRes, fRes] = await Promise.all([
+            const [vRes, fRes, cRes] = await Promise.all([
                 fetch('/api/vardiya'),
-                fetch('/api/forkliftler')
+                fetch('/api/forkliftler'),
+                fetch('/api/config')
             ]);
             const vJson = await vRes.json();
             vardiyaData = vJson.vardiya;
             molaData = vJson.molalar;
             forkliftData = await fRes.json();
+            
+            const configData = await cRes.json();
+            document.getElementById('f1PaketlemeOrani').value = configData.f1_paketleme_orani || 80;
 
             renderVardiya();
             renderMolalar();
@@ -776,6 +797,15 @@
 
         // ─── CRUD ──────────────────────────────────────────
         async function saveAll() {
+            // Config
+            await fetch('/api/config', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    f1_paketleme_orani: parseFloat(document.getElementById('f1PaketlemeOrani').value || 80)
+                })
+            });
+
             // Vardiya
             await fetch('/api/vardiya', {
                 method: 'PUT',

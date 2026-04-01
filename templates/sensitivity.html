@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RHI Magnesita — Tolerans Duyarlılık Analizi</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+    <style>
+        :root {
+            --bg-primary: #0f1117; --bg-secondary: #1a1d27; --bg-card: #222632;
+            --bg-input: #161922; --border: #2e3347; --border-focus: #6366f1;
+            --text-primary: #eef0f6; --text-secondary: #9ca3b8; --text-muted: #6b7280;
+            --accent: #6366f1; --accent-hover: #818cf8; --accent-glow: rgba(99,102,241,.15);
+            --success: #22c55e; --success-bg: rgba(34,197,94,.12);
+            --danger: #ef4444; --danger-bg: rgba(239,68,68,.12);
+            --warning: #f59e0b; --warning-bg: rgba(245,158,11,.12);
+            --radius: 12px; --radius-sm: 8px;
+        }
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { font-family:'Inter',-apple-system,sans-serif; background:var(--bg-primary); color:var(--text-primary); line-height:1.6; min-height:100vh; }
+
+        .header { background:linear-gradient(135deg,var(--bg-secondary),var(--bg-card)); border-bottom:1px solid var(--border); padding:20px 40px; display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:100; }
+        .header-left { display:flex; align-items:center; gap:16px; }
+        .logo { font-size:24px; font-weight:800; background:linear-gradient(135deg,#f59e0b,#ef4444); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
+        .logo-sub { font-size:13px; color:var(--text-muted); }
+        .nav-links { display:flex; gap:8px; }
+        .nav-link { padding:8px 16px; border-radius:var(--radius-sm); font-size:14px; font-weight:600; cursor:pointer; border:1px solid var(--border); background:transparent; color:var(--text-secondary); text-decoration:none; transition:all .2s; }
+        .nav-link:hover { background:var(--bg-card); color:var(--text-primary); }
+        .nav-link.active { background:linear-gradient(135deg,#f59e0b,#ef4444); color:white; border-color:transparent; }
+
+        .main { max-width:1600px; margin:0 auto; padding:24px 40px; }
+
+        .sim-badge { display:inline-flex; align-items:center; gap:6px; padding:6px 14px; border-radius:20px; font-size:12px; font-weight:700; background:rgba(245,158,11,.12); color:#fbbf24; border:1px solid rgba(245,158,11,.2); margin-bottom:20px; }
+
+        .grid-layout { display:grid; grid-template-columns:380px 1fr; gap:24px; }
+        @media (max-width:1000px) { .grid-layout { grid-template-columns:1fr; } }
+
+        .card { background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius); padding:20px; margin-bottom:20px; }
+        .card-title { font-size:16px; font-weight:700; margin-bottom:4px; display:flex; align-items:center; gap:8px; }
+        .card-sub { font-size:13px; color:var(--text-muted); margin-bottom:16px; }
+
+        /* Scenario Selector */
+        .scenario-select { width:100%; padding:10px 14px; border-radius:var(--radius-sm); font-size:13px; font-weight:600; border:1px solid var(--border); background:var(--bg-input); color:var(--text-primary); cursor:pointer; font-family:'Inter'; margin-bottom:16px; }
+        .scenario-select:focus { outline:none; border-color:var(--accent); }
+
+        /* Slider Control */
+        .slider-group { margin-bottom:14px; padding:12px; border-radius:var(--radius-sm); border:1px solid var(--border); transition:all .2s; }
+        .slider-group.changed { border-color:var(--warning); background:var(--warning-bg); }
+        .slider-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; }
+        .slider-label { font-size:13px; font-weight:600; }
+        .slider-value { display:flex; align-items:center; gap:8px; }
+        .slider-value input[type="number"] { width:70px; padding:4px 8px; border-radius:6px; border:1px solid var(--border); background:var(--bg-input); color:var(--text-primary); font-size:13px; font-weight:700; text-align:center; font-family:'Inter'; }
+        .slider-value input[type="number"]:focus { outline:none; border-color:var(--accent); }
+        .slider-meta { font-size:11px; color:var(--text-muted); display:flex; gap:12px; margin-bottom:6px; }
+        .slider-meta span { display:inline-flex; align-items:center; gap:3px; }
+        input[type="range"] { width:100%; height:6px; -webkit-appearance:none; appearance:none; background:var(--bg-primary); border-radius:3px; outline:none; }
+        input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:18px; height:18px; border-radius:50%; background:linear-gradient(135deg,#f59e0b,#ef4444); cursor:pointer; border:2px solid var(--bg-card); box-shadow:0 0 6px rgba(245,158,11,.3); }
+        .slider-original { font-size:11px; color:var(--text-muted); font-style:italic; }
+
+        /* Run Button */
+        .run-btn { width:100%; padding:14px; border-radius:var(--radius-sm); font-size:15px; font-weight:700; border:none; cursor:pointer; font-family:'Inter'; color:white; background:linear-gradient(135deg,#f59e0b,#ef4444); transition:all .2s; margin-top:8px; }
+        .run-btn:hover { transform:translateY(-1px); box-shadow:0 4px 16px rgba(245,158,11,.3); }
+        .run-btn:disabled { opacity:0.5; cursor:not-allowed; transform:none; box-shadow:none; }
+        .run-btn.running { background:linear-gradient(135deg,#6366f1,#818cf8); }
+
+        .reset-btn { width:100%; padding:10px; border-radius:var(--radius-sm); font-size:13px; font-weight:600; border:1px solid var(--border); cursor:pointer; font-family:'Inter'; color:var(--text-secondary); background:transparent; transition:all .2s; margin-top:8px; }
+        .reset-btn:hover { border-color:var(--accent); color:var(--text-primary); }
+
+        /* Results */
+        .result-placeholder { display:flex; flex-direction:column; align-items:center; justify-content:center; padding:80px 20px; color:var(--text-muted); text-align:center; }
+        .result-placeholder .icon { font-size:48px; margin-bottom:12px; }
+
+        .kpi-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:12px; margin-bottom:20px; }
+        .kpi { background:var(--bg-input); border:1px solid var(--border); border-radius:var(--radius-sm); padding:14px; text-align:center; }
+        .kpi-label { font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.5px; margin-bottom:4px; }
+        .kpi-before { font-size:14px; font-weight:600; color:var(--text-muted); text-decoration:line-through; }
+        .kpi-after { font-size:22px; font-weight:800; }
+        .kpi-after.improved { background:linear-gradient(135deg,var(--success),#86efac); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
+        .kpi-after.same { background:linear-gradient(135deg,#8b5cf6,#06b6d4); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
+        .kpi-after.worse { background:linear-gradient(135deg,var(--danger),#fca5a5); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
+        .kpi-delta { font-size:11px; font-weight:700; margin-top:2px; }
+        .delta-good { color:var(--success); }
+        .delta-bad { color:var(--danger); }
+        .delta-neutral { color:var(--text-muted); }
+
+        .comp-table { width:100%; border-collapse:separate; border-spacing:0; font-size:13px; }
+        .comp-table thead th { font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:.5px; padding:10px 12px; text-align:left; background:var(--bg-input); border-bottom:1px solid var(--border); white-space:nowrap; }
+        .comp-table tbody td { padding:10px 12px; border-bottom:1px solid var(--border); }
+        .comp-table tbody tr:hover { background:rgba(255,255,255,.02); }
+        .comp-table .changed-row { background:var(--warning-bg); }
+
+        .loading-overlay { display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(15,17,23,.8); z-index:200; align-items:center; justify-content:center; flex-direction:column; }
+        .loading-overlay.active { display:flex; }
+        .spinner { width:40px; height:40px; border:3px solid var(--border); border-top-color:#f59e0b; border-radius:50%; animation:spin .8s linear infinite; margin-bottom:16px; }
+        @keyframes spin { to { transform:rotate(360deg); } }
+        @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+        .fade-in { animation:fadeIn .4s ease both; }
+
+        .priority-badge { display:inline-block; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:600; }
+        .priority-badge.yuksek { background:rgba(239,68,68,.12); color:var(--danger); }
+        .priority-badge.normal { background:rgba(245,158,11,.12); color:var(--warning); }
+        .priority-badge.dusuk { background:rgba(34,197,94,.12); color:var(--success); }
+
+        .n-reps-input { width:60px; padding:4px 8px; border-radius:6px; border:1px solid var(--border); background:var(--bg-input); color:var(--text-primary); font-size:13px; text-align:center; font-family:'Inter'; }
+    </style>
+</head>
+<body>
+
+<header class="header">
+    <div class="header-left">
+        <div>
+            <div class="logo">🎯 RHI Magnesita</div>
+            <div class="logo-sub">Tolerans Duyarlılık Analizi — What-if Simülasyonu</div>
+        </div>
+    </div>
+    <div class="nav-links">
+        <a href="/" class="nav-link">📝 Veri Girişi</a>
+        <a href="/timeline" class="nav-link">📊 Deterministik</a>
+        <a href="/timeline-simpy" class="nav-link">🎲 SimPy</a>
+        <a href="/replications" class="nav-link">🔬 Replikasyonlar</a>
+        <a href="/sensitivity" class="nav-link active">🎯 Duyarlılık</a>
+    </div>
+</header>
+
+<div class="loading-overlay" id="loadingOverlay">
+    <div class="spinner"></div>
+    <div style="color:var(--text-muted)">Simülasyon çalıştırılıyor...</div>
+    <div style="font-size:12px;color:var(--text-muted);margin-top:8px">Önce/Sonra karşılaştırması hesaplanıyor</div>
+</div>
+
+<main class="main">
+    <div class="sim-badge">🎯 Tolerans Duyarlılık Analizi · Fazliyet toleranslarını değiştirin ve etkisini görün</div>
+
+    <div class="grid-layout">
+        <!-- Left Panel: Controls -->
+        <div>
+            <div class="card">
+                <div class="card-title">⚙️ Kontrol Paneli</div>
+                <div class="card-sub">Tolerans değerlerini ayarlayın ve simülasyonu çalıştırın</div>
+
+                <label style="font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Senaryo</label>
+                <select class="scenario-select" id="scenarioSelect">
+                    <option value="mevcut">Mevcut Durum (3 Forklift)</option>
+                    <option value="f1_f2" selected>F1+F2 Birleşim</option>
+                    <option value="f1_f3">F1+F3 Birleşim</option>
+                    <option value="f2_f3">F2+F3 Birleşim</option>
+                    <option value="f1_f2_bos_f3">F1+F2 + Boş Palet & Iskarta→F3</option>
+                    <option value="gece_delegasyonu">Gece Delegasyonu</option>
+                    <option value="gece_f1_f2">Gece + F1+F2</option>
+                    <option value="gece_f1_f3">Gece + F1+F3</option>
+                    <option value="gece_f2_f3">Gece + F2+F3</option>
+                </select>
+
+                <div style="display:flex; align-items:center; gap:8px; margin-bottom:16px">
+                    <label style="font-size:12px;font-weight:600;color:var(--text-muted)">Replikasyon:</label>
+                    <input type="number" class="n-reps-input" id="nReps" value="30" min="10" max="100" step="10">
+                </div>
+
+                <div id="sliderContainer"></div>
+
+                <button class="run-btn" id="runBtn" onclick="runAnalysis()">🚀 Analizi Çalıştır</button>
+                <button class="reset-btn" onclick="resetSliders()">↺ Toleransları Sıfırla</button>
+            </div>
+        </div>
+
+        <!-- Right Panel: Results -->
+        <div id="resultsPanel">
+            <div class="result-placeholder">
+                <div class="icon">🎯</div>
+                <div style="font-size:16px;font-weight:700;margin-bottom:8px">Tolerans Duyarlılık Analizi</div>
+                <div style="font-size:13px;max-width:400px">Sol panelden tolerans değerlerini ayarlayın ve <strong>"Analizi Çalıştır"</strong> butonuna basın. Sistem, mevcut ve yeni toleranslarla simülasyonu karşılaştıracak.</div>
+            </div>
+        </div>
+    </div>
+</main>
+
+<script>
+let activities = [];
+let originalTolerances = {};
+let lastResult = null;
+
+// Load activities on init
+document.addEventListener('DOMContentLoaded', async () => {
+    const res = await fetch('/api/activities');
+    activities = await res.json();
+    activities.forEach(a => { originalTolerances[a.name] = a.tolerance_dk; });
+    renderSliders();
+});
+
+function renderSliders() {
+    const container = document.getElementById('sliderContainer');
+    container.innerHTML = activities.map(a => {
+        const maxVal = Math.max(a.tolerance_dk * 3, 120);
+        const pLabel = a.priority === 'yuksek' ? '🔴 Yüksek' : a.priority === 'dusuk' ? '🟢 Düşük' : '🟡 Normal';
+        const pCls = a.priority;
+        const poissonTag = a.poisson ? '<span>⚡ Poisson</span>' : '';
+
+        return `<div class="slider-group" id="group_${CSS.escape(a.name)}">
+            <div class="slider-header">
+                <span class="slider-label">${a.name}</span>
+                <div class="slider-value">
+                    <input type="number" id="num_${CSS.escape(a.name)}" value="${a.tolerance_dk}" min="5" max="${maxVal}" step="5"
+                        onchange="syncFromNumber('${a.name}', this.value)" onfocus="this.select()"> dk
+                </div>
+            </div>
+            <div class="slider-meta">
+                <span class="priority-badge ${pCls}">${pLabel}</span>
+                <span>⏱️ ${a.cycle_time}dk çevrim</span>
+                ${poissonTag}
+            </div>
+            <input type="range" id="slider_${CSS.escape(a.name)}" value="${a.tolerance_dk}" min="5" max="${maxVal}" step="5"
+                oninput="syncFromSlider('${a.name}', this.value)">
+            <div class="slider-original">Mevcut: ${a.tolerance_dk} dk</div>
+        </div>`;
+    }).join('');
+}
+
+function syncFromSlider(name, value) {
+    const v = parseFloat(value);
+    document.getElementById('num_' + CSS.escape(name)).value = v;
+    updateGroupHighlight(name, v);
+}
+
+function syncFromNumber(name, value) {
+    const v = parseFloat(value);
+    document.getElementById('slider_' + CSS.escape(name)).value = v;
+    updateGroupHighlight(name, v);
+}
+
+function updateGroupHighlight(name, value) {
+    const group = document.getElementById('group_' + CSS.escape(name));
+    if (Math.abs(value - originalTolerances[name]) > 0.1) {
+        group.classList.add('changed');
+    } else {
+        group.classList.remove('changed');
+    }
+}
+
+function resetSliders() {
+    activities.forEach(a => {
+        document.getElementById('slider_' + CSS.escape(a.name)).value = a.tolerance_dk;
+        document.getElementById('num_' + CSS.escape(a.name)).value = a.tolerance_dk;
+        updateGroupHighlight(a.name, a.tolerance_dk);
+    });
+}
+
+async function runAnalysis() {
+    const btn = document.getElementById('runBtn');
+    const overlay = document.getElementById('loadingOverlay');
+    btn.disabled = true;
+    btn.textContent = '⏳ Çalışıyor...';
+    btn.classList.add('running');
+    overlay.classList.add('active');
+
+    // Build tolerance overrides
+    const overrides = {};
+    activities.forEach(a => {
+        const v = parseFloat(document.getElementById('num_' + CSS.escape(a.name)).value);
+        if (Math.abs(v - a.tolerance_dk) > 0.1) {
+            overrides[a.name] = v;
+        }
+    });
+
+    const scenario = document.getElementById('scenarioSelect').value;
+    const nReps = parseInt(document.getElementById('nReps').value) || 30;
+
+    try {
+        const res = await fetch('/api/sensitivity', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ scenario_key: scenario, tolerance_overrides: overrides, n_reps: nReps }),
+        });
+        lastResult = await res.json();
+        renderResults(lastResult);
+    } catch (e) {
+        document.getElementById('resultsPanel').innerHTML = `<div class="card"><div class="card-title">❌ Hata</div><div>${e.message}</div></div>`;
+    }
+
+    btn.disabled = false;
+    btn.textContent = '🚀 Analizi Çalıştır';
+    btn.classList.remove('running');
+    overlay.classList.remove('active');
+}
+
+function renderResults(data) {
+    if (data.error) {
+        document.getElementById('resultsPanel').innerHTML = `<div class="card"><div class="card-title">❌ Hata</div><div>${data.error}</div></div>`;
+        return;
+    }
+
+    const b = data.before;
+    const a = data.after;
+
+    let html = '';
+
+    // KPI Summary
+    html += `<div class="card fade-in">
+        <div class="card-title">📊 Genel Karşılaştırma — ${data.scenario_name}</div>
+        <div class="card-sub">${data.n_reps} replikasyon · Önce vs. Sonra</div>
+        <div class="kpi-grid">${renderKPI('Toplam İhlal', b.total_violations, a.total_violations, 'lower')}
+            ${renderKPI('Ort. Kullanım', b.avg_utilization + '%', a.avg_utilization + '%', 'neutral')}
+            ${renderKPI('Maks Gecikme', b.max_delay + 'dk', a.max_delay + 'dk', 'lower')}
+            ${renderKPI('Uygunluk', b.feasible ? '✅' : '❌', a.feasible ? '✅' : '❌', 'bool')}
+        </div>
+    </div>`;
+
+    // Tolerance Changes Table
+    const changedTols = data.tolerance_changes.filter(t => t.changed);
+    if (changedTols.length > 0) {
+        html += `<div class="card fade-in">
+            <div class="card-title">🔧 Uygulanan Tolerans Değişiklikleri</div>
+            <table class="comp-table"><thead><tr>
+                <th>Faaliyet</th><th>Eski (dk)</th><th>Yeni (dk)</th><th>Değişim</th>
+            </tr></thead><tbody>`;
+        changedTols.forEach(t => {
+            const delta = t.new_tolerance_dk - t.old_tolerance_dk;
+            const cls = delta > 0 ? 'delta-good' : 'delta-bad';
+            html += `<tr class="changed-row">
+                <td style="font-weight:600">${t.activity}</td>
+                <td>${t.old_tolerance_dk}</td>
+                <td style="font-weight:700">${t.new_tolerance_dk}</td>
+                <td class="${cls}" style="font-weight:700">${delta > 0 ? '+' : ''}${delta.toFixed(0)} dk</td>
+            </tr>`;
+        });
+        html += '</tbody></table></div>';
+    }
+
+    // Forklift-level comparison
+    Object.entries(data.forklift_comparison).forEach(([fkName, fk]) => {
+        const emoji = fkName.includes('1') ? '🧱' : fkName.includes('3') ? '🚛' : '📦';
+
+        html += `<div class="card fade-in">
+            <div class="card-title">${emoji} ${fkName}</div>
+            <div class="kpi-grid" style="margin-bottom:16px">
+                ${renderKPI('İhlal', fk.before.violations, fk.after.violations, 'lower')}
+                ${renderKPI('Kullanım', fk.before.utilization + '%', fk.after.utilization + '%', 'neutral')}
+                ${renderKPI('Maks Gecikme', fk.before.max_delay + 'dk', fk.after.max_delay + 'dk', 'lower')}
+                ${renderKPI('Ort. Gecikme', fk.before.avg_delay + 'dk', fk.after.avg_delay + 'dk', 'lower')}
+            </div>`;
+
+        if (fk.activity_comparison && fk.activity_comparison.length > 0) {
+            html += `<table class="comp-table"><thead><tr>
+                <th>Faaliyet</th><th>İhlal (Önce)</th><th>İhlal (Sonra)</th><th>Değişim</th>
+            </tr></thead><tbody>`;
+            fk.activity_comparison.forEach(ac => {
+                const delta = ac.violations_after - ac.violations_before;
+                const cls = delta < -0.1 ? 'delta-good' : delta > 0.1 ? 'delta-bad' : 'delta-neutral';
+                const highlight = Math.abs(delta) > 0.1 ? ' class="changed-row"' : '';
+                html += `<tr${highlight}>
+                    <td style="font-weight:500">${ac.activity}</td>
+                    <td>${ac.violations_before}</td>
+                    <td style="font-weight:700">${ac.violations_after}</td>
+                    <td class="${cls}" style="font-weight:700">${delta > 0.1 ? '+' + delta.toFixed(1) : delta < -0.1 ? delta.toFixed(1) : '—'}</td>
+                </tr>`;
+            });
+            html += '</tbody></table>';
+        }
+        html += '</div>';
+    });
+
+    // Chart: before/after violation comparison
+    const fkNames = Object.keys(data.forklift_comparison);
+    const beforeViols = fkNames.map(n => data.forklift_comparison[n].before.violations);
+    const afterViols = fkNames.map(n => data.forklift_comparison[n].after.violations);
+
+    html += `<div class="card fade-in">
+        <div class="card-title">📊 İhlal Karşılaştırma Grafiği</div>
+        <div id="violChart" style="height:300px"></div>
+    </div>`;
+
+    document.getElementById('resultsPanel').innerHTML = html;
+
+    // Render chart
+    Plotly.react('violChart', [
+        { x: fkNames, y: beforeViols, name: 'Önce', type: 'bar', marker: { color: '#ef4444', opacity: 0.7 } },
+        { x: fkNames, y: afterViols, name: 'Sonra', type: 'bar', marker: { color: '#22c55e', opacity: 0.7 } },
+    ], {
+        barmode: 'group', paper_bgcolor: '#222632', plot_bgcolor: '#1a1d27',
+        font: { family: 'Inter', color: '#eef0f6', size: 12 },
+        xaxis: { gridcolor: '#2e3347' }, yaxis: { title: 'Ort. İhlal / Gün', gridcolor: '#2e3347' },
+        legend: { font: { size: 12 }, bgcolor: 'rgba(0,0,0,0)' },
+        margin: { l: 50, r: 20, t: 20, b: 60 },
+    }, { responsive: true });
+}
+
+function renderKPI(label, before, after, mode) {
+    let bNum = parseFloat(String(before).replace(/[^0-9.-]/g, ''));
+    let aNum = parseFloat(String(after).replace(/[^0-9.-]/g, ''));
+    let delta = aNum - bNum;
+    let deltaText, deltaCls, afterCls;
+
+    if (mode === 'lower') {
+        afterCls = delta < -0.1 ? 'improved' : delta > 0.1 ? 'worse' : 'same';
+        deltaCls = delta < -0.1 ? 'delta-good' : delta > 0.1 ? 'delta-bad' : 'delta-neutral';
+        deltaText = Math.abs(delta) < 0.1 ? '—' : (delta > 0 ? '▲ +' : '▼ ') + delta.toFixed(1);
+    } else if (mode === 'bool') {
+        afterCls = String(after) === '✅' ? 'improved' : 'worse';
+        deltaCls = String(after) === '✅' ? 'delta-good' : 'delta-bad';
+        deltaText = String(before) !== String(after) ? '🔄 Değişti' : '—';
+    } else {
+        afterCls = 'same';
+        deltaCls = 'delta-neutral';
+        deltaText = Math.abs(delta) < 0.1 ? '—' : (delta > 0 ? '+' : '') + delta.toFixed(1);
+    }
+
+    return `<div class="kpi">
+        <div class="kpi-label">${label}</div>
+        <div class="kpi-before">${before}</div>
+        <div class="kpi-after ${afterCls}">${after}</div>
+        <div class="kpi-delta ${deltaCls}">${deltaText}</div>
+    </div>`;
+}
+</script>
+</body>
+</html>

@@ -91,6 +91,7 @@
         <a href="/timeline" class="nav-link">📊 Deterministik</a>
         <a href="/timeline-simpy" class="nav-link">🎲 SimPy</a>
         <a href="/replications" class="nav-link active">🔬 Replikasyonlar</a>
+        <a href="/sensitivity" class="nav-link">🎯 Duyarlılık</a>
     </div>
 </header>
 
@@ -169,7 +170,7 @@ let simData = null;
 let activeScenario = 'mevcut';
 let activeFk = '';
 let activeRepIdx = 0;
-const SCENARIO_ORDER = ['mevcut','gece_delegasyonu','f1_f2','f1_f3','f2_f3','gece_f1_f2','gece_f1_f3','gece_f2_f3'];
+const SCENARIO_ORDER = ['mevcut','gece_delegasyonu','f1_f2','f1_f3','f2_f3','f1_f2_bos_f3','gece_f1_f2','gece_f1_f3','gece_f2_f3'];
 
 const ACT_COLORS = {
     'Tuğla Dolu Paleti Alma':'#6366f1','Boş Palet Alma':'#818cf8','Iskarta Boşaltma':'#a5b4fc',
@@ -179,7 +180,7 @@ const ACT_COLORS = {
 };
 
 document.addEventListener('DOMContentLoaded', async () => {
-    const res = await fetch('/api/simulate-simpy?n=50');
+    const res = await fetch('/api/simulate-simpy?n=50&_t=' + Date.now());
     simData = await res.json();
     document.getElementById('loadingState').style.display = 'none';
     document.getElementById('content').style.display = 'block';

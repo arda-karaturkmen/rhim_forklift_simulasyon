@@ -120,6 +120,7 @@
         <a href="/timeline" class="nav-link">📊 Deterministik</a>
         <a href="/timeline-simpy" class="nav-link active">🎲 SimPy</a>
         <a href="/replications" class="nav-link">🔬 Replikasyonlar</a>
+        <a href="/sensitivity" class="nav-link">🎯 Duyarlılık</a>
     </div>
 </header>
 
@@ -182,8 +183,8 @@
 <script>
 let simData = null;
 let activeScenario = 'mevcut';
-const SCENARIO_ORDER = ['mevcut','gece_delegasyonu','f1_f2','f1_f3','f2_f3','gece_f1_f2','gece_f1_f3','gece_f2_f3'];
-const SCENARIO_ICONS = { mevcut:'🏭', gece_delegasyonu:'🌙', f1_f2:'🔀', f1_f3:'🔀', f2_f3:'🔀', gece_f1_f2:'🌙🔀', gece_f1_f3:'🌙🔀', gece_f2_f3:'🌙🔀' };
+const SCENARIO_ORDER = ['mevcut','gece_delegasyonu','f1_f2','f1_f3','f2_f3','f1_f2_bos_f3','gece_f1_f2','gece_f1_f3','gece_f2_f3'];
+const SCENARIO_ICONS = { mevcut:'🏭', gece_delegasyonu:'🌙', f1_f2:'🔀', f1_f3:'🔀', f2_f3:'🔀', f1_f2_bos_f3:'🔀📦', gece_f1_f2:'🌙🔀', gece_f1_f3:'🌙🔀', gece_f2_f3:'🌙🔀' };
 
 const ACT_COLORS = {
     'Tuğla Dolu Paleti Alma':'#6366f1','Boş Palet Alma':'#818cf8','Iskarta Boşaltma':'#a5b4fc','Karton, Bant vb':'#c7d2fe',
@@ -192,7 +193,7 @@ const ACT_COLORS = {
 };
 
 document.addEventListener('DOMContentLoaded', async () => {
-    const res = await fetch('/api/simulate-simpy?n=50');
+    const res = await fetch('/api/simulate-simpy?n=50&_t=' + Date.now());
     simData = await res.json();
     document.getElementById('loadingState').style.display = 'none';
     document.getElementById('content').style.display = 'block';
@@ -413,7 +414,7 @@ function renderFreqPanel(sc) {
             const pCls = a.oncelik || 'normal';
             const pLabel = a.oncelik === 'yuksek' ? '🔴 Yüksek' : a.oncelik === 'dusuk' ? '🟢 Düşük' : '🟡 Normal';
 
-            const tekrarLabel = a.poisson ? `⚡ Poisson (λ=1.46/sa)` : a.tekrar_dk ? (a.tekrar_dk >= 60 ? `${(a.tekrar_dk/60).toFixed(1)} saat` : `${a.tekrar_dk} dk`) : '—';
+            const tekrarLabel = a.poisson ? `⚡ Poisson` : a.tekrar_dk ? (a.tekrar_dk >= 60 ? `${(a.tekrar_dk/60).toFixed(1)} saat` : `${a.tekrar_dk} dk`) : '—';
             const cevrimLabel = `${a.cevrim_min ?? '?'} / ${a.cevrim_ort} / ${a.cevrim_max ?? '?'} dk`;
 
             // Visual bar for comparison

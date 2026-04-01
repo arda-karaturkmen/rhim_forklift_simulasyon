@@ -50,8 +50,11 @@ def load_data():
         ).fetchall()]
         forkliftler.append({**dict(f), "faaliyetler": faaliyetler})
 
+    tir_row = conn.execute("SELECT * FROM tir_config LIMIT 1").fetchone()
+    tir_config = dict(tir_row) if tir_row else {"lambda_saat": 1.46, "f1_paketleme_orani": 80}
+
     conn.close()
-    return {"vardiya": vardiya, "molalar": molalar, "forkliftler": forkliftler}
+    return {"vardiya": vardiya, "molalar": molalar, "forkliftler": forkliftler, "tir_config": tir_config}
 
 
 # ─── Simulation Engine ────────────────────────────────────────
@@ -282,6 +285,9 @@ def run_scenarios(data, exclude_night=False):
     v_end = parse_hm(data["vardiya"]["bitis"])
     breaks = [(parse_hm(m["baslangic"]), parse_hm(m["bitis"])) for m in data["molalar"]]
 
+    tir_config = data.get("tir_config", {"f1_paketleme_orani": 80})
+    f1_ratio = (tir_config.get("f1_paketleme_orani") or 80) / 100.0
+
     forkliftler = data["forkliftler"]
 
     def get_activities(forklift_ids, exclude_night_acts=False):
@@ -291,7 +297,13 @@ def run_scenarios(data, exclude_night=False):
                 for a in f["faaliyetler"]:
                     if exclude_night_acts and a.get("gece_vardiyasi"):
                         continue
-                    acts.append(a)
+                    act_copy = dict(a)
+                    if f["id"] == 1 and "Tuğla Dolu" in act_copy.get("ad", ""):
+                        if f1_ratio <= 0.01:
+                            act_copy["tekrar_suresi"] = 999999
+                        elif act_copy.get("tekrar_suresi") is not None:
+                            act_copy["tekrar_suresi"] = act_copy["tekrar_suresi"] / f1_ratio
+                    acts.append(act_copy)
         return acts
 
     scenarios = {}

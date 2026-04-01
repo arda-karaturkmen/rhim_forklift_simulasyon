@@ -80,9 +80,15 @@ def init_db():
             lambda_saat REAL DEFAULT 1.46,
             ort_gunluk INTEGER DEFAULT 12,
             min_gunluk INTEGER DEFAULT 5,
-            max_gunluk INTEGER DEFAULT 20
+            max_gunluk INTEGER DEFAULT 20,
+            f1_paketleme_orani REAL DEFAULT 80
         )
     """)
+    
+    try:
+        cur.execute("ALTER TABLE tir_config ADD COLUMN f1_paketleme_orani REAL DEFAULT 80")
+    except sqlite3.OperationalError:
+        pass
 
     # Başlangıç verileri — sadece boşsa ekle
     if cur.execute("SELECT COUNT(*) FROM forklift").fetchone()[0] == 0:
@@ -131,8 +137,8 @@ def init_db():
             VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
         """, all_fa)
 
-        # TIR Poisson yapılandırması
-        cur.execute("INSERT INTO tir_config (lambda_saat, ort_gunluk, min_gunluk, max_gunluk) VALUES (1.46, 12, 5, 20)")
+        # TIR Poisson yapılandırması ve Paketleme Oranı
+        cur.execute("INSERT INTO tir_config (lambda_saat, ort_gunluk, min_gunluk, max_gunluk, f1_paketleme_orani) VALUES (1.46, 12, 5, 20, 80)")
 
     conn.commit()
     conn.close()
@@ -198,6 +204,27 @@ def update_molalar():
     for m in data:
         conn.execute("UPDATE mola SET ad=?, baslangic=?, bitis=? WHERE id=?",
                      (m["ad"], m["baslangic"], m["bitis"], m["id"]))
+    conn.commit()
+    conn.close()
+    return jsonify({"ok": True})
+
+
+@app.route("/api/config", methods=["GET"])
+def get_config():
+    conn = get_db()
+    tir_row = conn.execute("SELECT * FROM tir_config LIMIT 1").fetchone()
+    conn.close()
+    return jsonify(dict(tir_row) if tir_row else {})
+
+@app.route("/api/config", methods=["PUT"])
+def update_config():
+    data = request.json
+    conn = get_db()
+    conn.execute("""
+        UPDATE tir_config
+        SET f1_paketleme_orani=?
+        WHERE id=1
+    """, (data.get("f1_paketleme_orani", 80),))
     conn.commit()
     conn.close()
     return jsonify({"ok": True})
@@ -371,6 +398,54 @@ def api_simulate_simpy():
     })
 
 
+@app.route("/sensitivity")
+def sensitivity_page():
+    return render_template("sensitivity.html")
+
+
+@app.route("/api/sensitivity", methods=["POST"])
+def api_sensitivity():
+    """Tolerans duyarlılık analizi çalıştır."""
+    from simulation_simpy import load_data, run_sensitivity_analysis
+    payload = request.get_json()
+    scenario_key = payload.get("scenario_key", "mevcut")
+    tolerance_overrides = payload.get("tolerance_overrides", {})
+    n_reps = min(max(payload.get("n_reps", 30), 10), 100)
+
+    data = load_data()
+    result = run_sensitivity_analysis(data, scenario_key, tolerance_overrides, n_reps=n_reps)
+    return jsonify(result)
+
+
+@app.route("/api/activities", methods=["GET"])
+def api_activities():
+    """Tüm faaliyetlerin tolerans bilgilerini döndür."""
+    from simulation_simpy import load_data
+    data = load_data()
+    activities = []
+    seen = set()
+    for f in data["forkliftler"]:
+        for a in f["faaliyetler"]:
+            name = a["ad"]
+            if name in seen:
+                continue
+            seen.add(name)
+            tol = a.get("gecikme_toleransi", 0)
+            birimi = a.get("gecikme_birimi", "dk")
+            tol_dk = tol * 60 if birimi == "saat" else tol
+            activities.append({
+                "name": name,
+                "forklift": f["ad"],
+                "tolerance_dk": round(tol_dk, 1),
+                "cycle_time": a.get("cevrim_suresi", 0),
+                "cycle_min": a.get("cevrim_min"),
+                "cycle_max": a.get("cevrim_max"),
+                "priority": a.get("oncelik", "normal"),
+                "poisson": bool(a.get("poisson_mode", 0)),
+            })
+    return jsonify(activities)
+
+
 # ─── Start ─────────────────────────────────────────────────────
 
 if __name__ == "__main__":
@@ -378,4 +453,6 @@ if __name__ == "__main__":
     print("🚜 Forklift Veri Girişi     → http://localhost:5050")
     print("📊 Deterministik Timeline   → http://localhost:5050/timeline")
     print("🎲 SimPy Simülasyon         → http://localhost:5050/timeline-simpy")
+    print("🔬 Replikasyonlar           → http://localhost:5050/replications")
+    print("🎯 Duyarlılık Analizi       → http://localhost:5050/sensitivity")
     app.run(debug=False, port=5050, host="0.0.0.0")
