@@ -66,7 +66,7 @@ def break_time_between(t1, t2, breaks):
 # ─── Empirical Production Data ─────────────────────────────────
 # 58 günlük gerçek üretim verisi (paketlemeden geçen toplam palet/gün)
 # Kaynak: Kullanıcıdan alınan düzenli tablo (Ocak-Mart 2026)
-EMPIRICAL_DAILY_PALLETS = [
+_EMPIRICAL_DAILY_PALLETS_RAW = [
     # Ocak 2026
     89, 80, 90, 75, 41, 165, 110, 92, 6, 166, 71, 137, 46,
     78, 101, 87, 81, 47, 47, 97, 153, 81, 72, 100,
@@ -76,7 +76,16 @@ EMPIRICAL_DAILY_PALLETS = [
     # Mart 2026
     45, 67, 115, 25, 136, 157, 88, 71, 95, 90, 126, 104, 88,
 ]
-# Ortalama: ~97 palet/gün, λ_saat≈12.1
+
+# Operasyonel sınırlar: aykırı değerler (tatil, arıza, istisna günler) dışlanır.
+# Yalnızca gerçekçi çalışma aralığındaki günler simülasyona yansır.
+PALLET_MIN = 70   # Normal çalışma günü alt sınırı (palet/gün)
+PALLET_MAX = 150  # Normal çalışma günü üst sınırı (palet/gün)
+
+EMPIRICAL_DAILY_PALLETS = [
+    p for p in _EMPIRICAL_DAILY_PALLETS_RAW if PALLET_MIN <= p <= PALLET_MAX
+]
+# Filtrelenmiş veri istatistikleri otomatik güncellenir
 PRODUCTION_LAMBDA_SAAT = statistics.mean(EMPIRICAL_DAILY_PALLETS) / 8
 
 
@@ -108,6 +117,9 @@ PRIORITY_MAP = {"yuksek": 1, "normal": 2, "dusuk": 3}
 # Dinamik Önceliklendirme: bekleme süresi toleransın X%'ini aştığında öncelik yükselmeye başlar
 AGING_THRESHOLD_PCT = 0.5   # Toleransın %50'sinden sonra aging başlar
 AGING_MAX_ESCALATION = 1.0  # Maks 1 kademe yükselme (düşük→normal, normal→yüksek)
+
+# Makine işleme süresi: paket makineye girince çıkana kadar geçen süre (dk)
+MACHINE_PROCESSING_TIME_DK = 5.0
 
 
 class ForkliftSimulation:
@@ -349,8 +361,21 @@ class ForkliftSimulation:
             # Kuyruğa varış zamanını ekle (forklift durumundan bağımsız)
             queue.put(arrival_time)
 
-    def poisson_service_process(self, env, forklift, queue, act):
-        """Kuyruktan varış alıp hizmet veren süreç."""
+    def _schedule_pipeline_output(self, env, queue, delay):
+        """Pipeline gecikmesi sonrası çıkış kuyruğuna palet ekle.
+        Makine işleme süresi gibi gecikmeleri modellemek için kullanılır."""
+        yield env.timeout(delay)
+        if env.now < self.v_end:
+            queue.put(env.now)
+
+    def poisson_service_process(self, env, forklift, queue, act,
+                                output_queue=None, processing_delay=0.0):
+        """Kuyruktan varış alıp hizmet veren süreç.
+        
+        output_queue: İsteğe bağlı — servis tamamlandıktan processing_delay sonra
+                      bir sonraki aşamayı (pipeline) tetiklemek için kullanılır.
+        processing_delay: Pipeline gecikmesi (dk). Örn: makine işleme için 5 dk.
+        """
         gecikme_tol = to_dk(act.get("gecikme_toleransi"), act.get("gecikme_birimi", "dk"))
         base_priority = PRIORITY_MAP.get(act.get("oncelik"), 2)
         avg_cevrim = act.get("cevrim_suresi", 1)
@@ -421,6 +446,10 @@ class ForkliftSimulation:
             yield env.timeout(cevrim)
             forklift.release(req)
 
+            # Pipeline çıkışı: makine/süreç gecikmesi sonrası downstream kuyruğa ekle
+            if output_queue is not None:
+                env.process(self._schedule_pipeline_output(env, output_queue, processing_delay))
+
             # Net gecikme
             gross_delay = actual_start - scheduled_time
             break_dur = break_time_between(scheduled_time, actual_start, self.breaks)
@@ -463,19 +492,68 @@ class ForkliftSimulation:
         self.completed += 1
 
     def run(self, seed=None):
-        """Simülasyonu çalıştır."""
+        """Simülasyonu çalıştır.
+        
+        Pipeline tespiti: 'Makineye' faaliyeti tanımlandığında, karşılık gelen
+        'Makinadan Stoğa' faaliyeti bağımsız Poisson yerine makine çıkış
+        kuyruğundan beslenir (MACHINE_PROCESSING_TIME_DK gecikme ile).
+        Aynı mantık 'Alana' → 'Alandan Stoğa' için de geçerlidir.
+        """
         if seed is not None:
             random.seed(seed)
 
         env = simpy.Environment(initial_time=self.v_start)
         forklift = simpy.PriorityResource(env, capacity=1)
 
+        # Pipeline çiftlerini bul: upstream ad → downstream act
+        pipeline_map = {}   # upstream_ad → (downstream_act, delay)
         for act in self.activities:
+            ad = act.get("ad", "")
+            if "Makineye" in ad and act.get("poisson_mode"):
+                downstream = next(
+                    (a for a in self.activities if "Makinadan Stoğa" in a.get("ad", "")),
+                    None
+                )
+                if downstream:
+                    pipeline_map[ad] = (downstream, MACHINE_PROCESSING_TIME_DK)
+            elif "Boşaltmadan Alana" in ad and act.get("poisson_mode"):
+                downstream = next(
+                    (a for a in self.activities if "Alandan Stoğa" in a.get("ad", "")),
+                    None
+                )
+                if downstream:
+                    # Manuel işleme için şimdilik anlık geçiş (sıfır gecikme)
+                    # Gelecekte: manuel batch gecikme buraya eklenebilir
+                    pipeline_map[ad] = (downstream, 0.0)
+
+        pipeline_downstream_ads = {v[0]["ad"] for v in pipeline_map.values()}
+
+        for act in self.activities:
+            ad = act.get("ad", "")
+
+            # Downstream pipeline faaliyetleri bağımsız başlatılmaz
+            if ad in pipeline_downstream_ads:
+                continue
+
             if act.get("poisson_mode"):
-                # Bağımsız varış üreteci + hizmet süreci (Store kuyruğu ile)
-                queue = simpy.Store(env)
-                env.process(self.poisson_arrival_generator(env, queue, act))
-                env.process(self.poisson_service_process(env, forklift, queue, act))
+                arrival_queue = simpy.Store(env)
+                env.process(self.poisson_arrival_generator(env, arrival_queue, act))
+
+                if ad in pipeline_map:
+                    # Pipeline modu: upstream servis tamamlanınca downstream tetiklenir
+                    downstream_act, delay = pipeline_map[ad]
+                    output_queue = simpy.Store(env)
+                    env.process(self.poisson_service_process(
+                        env, forklift, arrival_queue, act,
+                        output_queue=output_queue, processing_delay=delay
+                    ))
+                    # Downstream (ör: Makinadan Stoğa) çıkış kuyruğundan beslenir
+                    env.process(self.poisson_service_process(
+                        env, forklift, output_queue, downstream_act
+                    ))
+                else:
+                    # Normal bağımsız Poisson
+                    env.process(self.poisson_service_process(env, forklift, arrival_queue, act))
             else:
                 env.process(self.regular_activity_process(env, forklift, act))
 
@@ -724,16 +802,23 @@ def run_simpy_scenarios(data, n_reps=50):
                     if f["id"] == 1 and act_copy.get("poisson_mode") and "Tuğla Dolu" in act_copy.get("ad", ""):
                         act_copy["_poisson_split"] = tir_config.get("f1_paketleme_orani", 80) / 100.0
                         
-                    # FK2 "Makineye" ve "Alana" faaliyetleri toplam üretimin %50'sini alır
+                    # FK2 split: veriye dayalı makine/manuel oranı (tir_config.makine_split)
+                    # Makine: ~%66, Manuel: ~%34 (1.896 / 2.877 ampirik veriden)
                     if f["id"] == 2:
-                        if "Makineye" in act_copy.get("ad", "") or "Alana" in act_copy.get("ad", ""):
-                            act_copy["_poisson_split"] = 0.5
-                        elif "Makinadan Stoğa" in act_copy.get("ad", ""):
+                        makine_split = tir_config.get("makine_split", 0.66)
+                        alan_split = round(1.0 - makine_split, 4)
+
+                        ad = act_copy.get("ad", "")
+                        if "Makineye" in ad:
+                            act_copy["_poisson_split"] = makine_split
+                        elif "Boşaltmadan Alana" in ad:
+                            act_copy["_poisson_split"] = alan_split
+                        elif "Makinadan Stoğa" in ad:
                             act_copy["poisson_mode"] = 1
-                            act_copy["_poisson_split"] = 0.5
-                        elif "Alandan Stoğa" in act_copy.get("ad", ""):
+                            act_copy["_poisson_split"] = makine_split
+                        elif "Alandan Stoğa" in ad:
                             act_copy["poisson_mode"] = 1
-                            act_copy["_poisson_split"] = 0.5
+                            act_copy["_poisson_split"] = alan_split
                     acts.append(act_copy)
         return acts
 
@@ -773,29 +858,27 @@ def run_simpy_scenarios(data, n_reps=50):
         scenarios[key] = {"name": name, "description": desc, "forklift_count": 2, "forkliftler": fks}
 
     # ── Özel Senaryo: F1+F2 Birleşim + Boş Palet & Iskarta → F3 ──
-    # F1+F2'nin tüm faaliyetleri tek forklift'e, AMA "Boş Palet Alma" ve "Iskarta Boşaltma" F3'e devredilir
+    # Mantık: Gece+F1+F2 ile aynı — Boş Palet & Iskarta kaldırılır, ama
+    # gece yerine F3'e devredilir. Doğru split için get_acts() kullanılmalı.
     fks_special = {}
-    # FK_A: F1+F2 faaliyetleri — "Boş Palet Alma" ve "Iskarta Boşaltma" hariç
+
+    # Tüm FK1+FK2 faaliyetlerini doğru split oranlarıyla al (get_acts zaten uygular)
+    all_f1f2_acts = get_acts([1, 2])
     merged_acts_filtered = []
-    delegated_to_f3 = []  # F3'e devredilecek faaliyetler
-    for f in forkliftler:
-        if f["id"] in [1, 2]:
-            for a in f["faaliyetler"]:
-                act_copy = dict(a)
-                if "Boş Palet" in act_copy.get("ad", "") or "Iskarta" in act_copy.get("ad", ""):
-                    delegated_to_f3.append(act_copy)  # Bu F3'e gidecek
-                    continue
-                if act_copy.get("poisson_mode") and ("Makineye" in act_copy.get("ad", "") or "Alana" in act_copy.get("ad", "")):
-                    act_copy["_poisson_split"] = 0.5
-                merged_acts_filtered.append(act_copy)
+    delegated_to_f3 = []
+
+    for act in all_f1f2_acts:
+        if "Boş Palet" in act.get("ad", "") or "Iskarta" in act.get("ad", ""):
+            delegated_to_f3.append(act)   # Splits zaten get_acts tarafından uygulandı
+        else:
+            merged_acts_filtered.append(act)
 
     merged_name_a = "Forklift 1+Forklift 2"
     fks_special[merged_name_a] = run_multi_replication(merged_acts_filtered, v_start, v_end, breaks, merged_name_a, n_reps, tir_config)
 
-    # FK_B: F3 faaliyetleri + Boş Palet Alma + Iskarta Boşaltma
+    # FK_B: F3 kendi faaliyetleri + devralınan Boş Palet Alma + Iskarta Boşaltma
     f3_acts = get_acts([3])
-    for delegated_act in delegated_to_f3:
-        f3_acts.append(delegated_act)
+    f3_acts.extend(delegated_to_f3)
     fks_special["Forklift 3"] = run_multi_replication(f3_acts, v_start, v_end, breaks, "Forklift 3", n_reps, tir_config)
 
     scenarios["f1_f2_bos_f3"] = {
